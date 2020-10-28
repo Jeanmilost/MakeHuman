@@ -1,0 +1,3 @@
+[submodule "MHX2/MHX2/json"]
+	path = MHX2/MHX2/json
+	url = https://github.com/vivkin/vjson.git

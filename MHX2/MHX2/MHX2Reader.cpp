@@ -28,10 +28,8 @@
 
 #include "MHX2Reader.h"
 
-// https://docs.microsoft.com/en-us/dotnet/standard/serialization/system-text-json-how-to
-// https://github.com/amir-s/jute
-// https://github.com/subh83/RSJp-cpp
-// https://github.com/vivkin/vjson
+// libraries
+#include "json.h"
 
 //---------------------------------------------------------------------------
 // MHX2Reader::IItem
@@ -273,131 +271,18 @@ bool MHX2Reader::Read(const std::string& data)
         m_pRoot = nullptr;
     }
 
-          IItem*      pItem      = nullptr;
-    const std::size_t length     = data.length();
-          std::size_t startIndex = 0;
-          std::size_t index      = 0;
+    char*           pErrorPos  = 0;
+    const char*     pErrorDesc = 0;
+    int             pErrorLine = 0;
+    block_allocator allocator(1 << 10);
 
-    // file is formatted as follow:
-    //{
-    //    "mhx2_version" : "0.27",
-    //    "skeleton" : {
-    //        "name" : "Sandra",
-    //        "offset" : [0,8.1053,0],
-    //        "scale" : 1,
-    //        "bones" : [
-    //            {
-    //                "name" : "Root",
-    //                "head" : [0,-8.1054,-0.2658],
-    //                "tail" : [0,-8.1053,0.2658],
-    //                "roll" : 0,
-    //                "matrix" : [
-    //                    [0,0,1,0],
-    //                    [1,0.00022245,0,-8.1054],
-    //                    [-0.00022245,1,0,-0.2658],
-    //                    [0,0,0,1]
-    //                ]
-    //            },
-    //    ...
-    while (index < length)
-        switch (data[index])
-        {
-            case '\r':
-            case '\n':
-                // parse the next line
-                if (!ReadLine(data, startIndex, index, pItem))
-                    return false;
+    // read the json data
+    json_value* pJsonRoot = json_parse(const_cast<char*>(data.c_str()), &pErrorPos, &pErrorDesc, &pErrorLine, &allocator);
 
-                // skip all remaining line feed and carriage return
-                while (index < length && (data[index] == '\r' || data[index] == '\n'))
-                    ++index;
-
-                // keep the next line start position
-                startIndex = index;
-                continue;
-
-            default:
-                ++index;
-                continue;
-        }
-
-    // parse the last line
-    if (startIndex < length)
-        if (!ReadLine(data, startIndex, length, pItem))
-            return false;
-
-    return true;
-}
-//---------------------------------------------------------------------------
-bool MHX2Reader::ReadLine(const std::string& data,
-                             const std::size_t  startIndex,
-                             const std::size_t  endIndex,
-                                   IItem*&      pParent)
-{
-    std::size_t index      = startIndex;
-    std::size_t keyStart   = startIndex;
-    std::size_t keyEnd     = startIndex;
-    std::size_t valueStart = startIndex;
-    std::size_t valueEnd   = endIndex;
-    bool        readKey    = false;
-    bool        readValue  = false;
-    bool        doBreak    = false;
-
-    while (index < endIndex)
-    {
-        if (doBreak)
-            break;
-
-        switch (data[index])
-        {
-            case '"':
-                if (readValue)
-                {
-                    ++index;
-                    continue;
-                }
-
-                if (!readKey)
-                    keyStart = index + 1;
-                else
-                    keyEnd = index;
-
-                readKey = !readKey;
-                ++index;
-                continue;
-
-            case ':':
-                doBreak    = true;
-                readValue  = true;
-                valueStart = index + 1;
-                ++index;
-                continue;
-
-            default:
-                ++index;
-                continue;
-        }
-    }
-
-    return ReadKeyValue(data, keyStart, keyEnd, valueStart, valueEnd, pParent);
-}
-//---------------------------------------------------------------------------
-bool MHX2Reader::ReadKeyValue(const std::string& data,
-                                 const std::size_t  keyStart,
-                                 const std::size_t  keyEnd,
-                                 const std::size_t  valueStart,
-                                 const std::size_t  valueEnd,
-                                       IItem*&      pParent)
-{
-    if (keyEnd > keyStart)
-    {
-        std::string key = data.substr(keyStart, keyEnd - keyStart);
-        return true;
-    }
-
-    if (valueEnd <= valueStart)
+    // succeeded?
+    if (!pJsonRoot || pJsonRoot->type != JSON_OBJECT)
         return false;
 
     return true;
-}
+
 //---------------------------------------------------------------------------

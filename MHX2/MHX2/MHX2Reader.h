@@ -32,7 +32,11 @@
 #include <vector>
 #include <string>
 
-// retrograde engine
+// libraries
+#include "json.h"
+
+// classes
+#include "Color.h"
 #include "Vector3.h"
 #include "Matrix4x4.h"
 
@@ -43,205 +47,175 @@
 class MHX2Reader
 {
     public:
+        typedef std::vector<bool>        IBoolValues;
+        typedef std::vector<std::size_t> IIntValues;
+        typedef std::vector<float>       IFloatValues;
+        typedef std::vector<std::string> IStringValues;
+        typedef std::vector<Vector3F*>   IVertices;
+
         /**
-        * Generic item
+        * Bone
         */
-        class IItem
+        struct IBone
         {
-            public:
-                IItem();
+            std::string m_Name;
+            std::string m_ParentName;
+            Vector3F    m_Head;
+            Vector3F    m_Tail;
+            float       m_Roll;
+            Matrix4x4F  m_Matrix;
+        };
 
-                /**
-                * Constructor
-                *@param name - name
-                *@param pParent - parent item
-                *@param isArray - if true, the item contains an array
-                */
-                IItem(const std::string& name, IItem* pParent = nullptr, bool isArray = false);
+        typedef std::vector<IBone*> IBones;
 
-                virtual ~IItem();
-
-                /**
-                * Gets the key
-                *@return the key
-                */
-                virtual std::string GetKey() const;
-
-                /**
-                * Sets the key
-                *@param key - the new key to set
-                */
-                virtual void SetKey(const std::string& name);
-
-                /**
-                * Gets the parent
-                *@return the parent
-                */
-                virtual IItem* GetParent() const;
-
-                /**
-                * Sets the parent
-                *@param pParent - the new parent to set
-                */
-                virtual void SetParent(IItem* pParent);
-
-                /**
-                * Gets if the item is an array
-                *@return true if the item is an array, otherwise false
-                */
-                virtual bool GetIsArray() const;
-
-                /**
-                * Sets if the item is an array
-                *@param value - if true, the item is an array
-                */
-                virtual void SetIsArray(bool value);
-
-                /**
-                * Adds a child
-                *@param pChild - child to add
-                *@note Don't try to delete the added item from outside, it will be deleted internally
-                */
-                virtual void AddChild(IItem* pChild);
-
-                /**
-                * Deletes a child
-                *@param pChild - child to delete
-                */
-                virtual void DeleteChild(IItem* pChild);
-
-                /**
-                * Deletes a child at index
-                *@param index - child index to delete
-                */
-                virtual void DeleteChildAt(std::size_t index);
-
-                /**
-                * Gets a child at index
-                *@param index - child index to get
-                *@return the child at index, nullptr if not found or on error
-                */
-                virtual IItem* GetChildAt(std::size_t index) const;
-
-                /**
-                * Gets the child count
-                *@return the child count
-                */
-                virtual std::size_t GetChildCount() const;
-
-            protected:
-                typedef std::vector<IItem*> IItems;
-
-                std::string m_Key;
-                IItem*      m_pParent;
-                IItems      m_Items;
-                bool        m_IsArray;
+        /**
+        * Skeleton
+        */
+        struct ISkeleton
+        {
+            std::string m_Name;
+            Vector3F    m_Offset;
+            float       m_Scale;
+            IBones      m_Bones; // NEED DEL
         };
 
         /**
-        * Single value
+        * Material
         */
-        template <class T>
-        class IValue : public IItem
+        struct IMaterial
         {
-            public:
-                IValue();
+            std::string m_Name;
+            std::string m_DiffuseTexture;
+            ColorF      m_Ambient;
+            ColorF      m_Diffuse;
+            ColorF      m_Emissive;
+            float       m_DiffuseMapIntensity;
+            float       m_TransparencyMapIntensity;
+            float       m_Shininess;
+            float       m_Opacity;
+            float       m_Translucency;
+            float       m_SssRScale;
+            float       m_SssGScale;
+            float       m_SssBScale;
+            bool        m_Shadeless;
+            bool        m_Wireframe;
+            bool        m_Transparent;
+            bool        m_AlphaToCoverage;
+            bool        m_BackfaceCull;
+            bool        m_Depthless;
+            bool        m_CastShadows;
+            bool        m_SssEnabled;
+        };
 
-                /**
-                * Constructor
-                *@param value - value
-                */
-                IValue(T value);
+        typedef std::vector<IMaterial*> IMaterials;
 
-                /**
-                * Constructor
-                *@param key - key
-                *@param value - value
-                */
-                IValue(const std::string& key, T value);
-
-                virtual ~IValue();
-
-                /**
-                * Gets the value
-                *@return the value
-                */
-                virtual T GetValue() const;
-
-                /**
-                * Sets the value
-                *@param value - the value to set
-                */
-                virtual void SetValue(T value);
-
-            private:
-                T m_Value;
+        /**
+        * License
+        */
+        struct ILicense
+        {
+            std::string m_Author;
+            std::string m_License;
+            std::string m_Homepage;
         };
 
         /**
-        * 3D vector
+        * Face
         */
-        class IVector3 : public IItem
+        struct IFace
         {
-            public:
-                IVector3();
+            IIntValues m_Values;
+        };
 
-                /**
-                * Constructor
-                *@param key - key
-                *@param value - value
-                */
-                IVector3(const std::string& key, const Vector3F& value);
+        typedef std::vector<IFace*> IFaces;
 
-                virtual ~IVector3();
+        /**
+        * UV coord
+        */
+        struct IUVCoord
+        {
+            float m_X;
+            float m_Y;
+        };
 
-                /**
-                * Gets the value
-                *@return the value
-                */
-                virtual Vector3F GetValue() const;
+        typedef std::vector<IUVCoord*> IUVCoords;
 
-                /**
-                * Sets the value
-                *@param value - the value to set
-                */
-                virtual void SetValue(const Vector3F& value);
+        /**
+        * Weight
+        */
+        struct IWeight
+        {
+            std::string  m_Name;
+            IFloatValues m_Values;
+        };
 
-            private:
-                Vector3F m_Value;
+        typedef std::vector<IWeight*> IWeights;
+
+        /**
+        * Fit
+        */
+        struct IFit
+        {
+            IVertices m_Values;
+        };
+
+        typedef std::vector<IFit*> IFitting;
+
+        /**
+        * Mesh
+        */
+        struct IMesh
+        {
+            IVertices   m_Vertices; // NEED DEL
+            IFaces      m_Faces;    // NEED DEL
+            IUVCoords   m_UVCoords; // NEED DEL
+            IFaces      m_UVFaces;  // NEED DEL
+            IWeights    m_Weights;  // NEED DEL
         };
 
         /**
-        * 4x4 matrix
+        * Proxy
         */
-        class IMatrix4x4 : public IItem
+        struct IProxy
         {
-            public:
-                IMatrix4x4();
+            std::string   m_Name;
+            std::string   m_Type;
+            std::string   m_Uuid;
+            std::string   m_Basemesh;
+            IStringValues m_Tags;
+            IBoolValues   m_DeleteVerts;
+            IFitting      m_Fitting; // NEED DEL
+            void*         m_pVertexBoneWeights; // NEED DEL
+        };
 
-                /**
-                * Constructor
-                *@param key - key
-                *@param value - value
-                */
-                IMatrix4x4(const std::string& name, const Matrix4x4F& value);
+        /**
+        * Geometry
+        */
+        struct IGeometry
+        {
+            std::string m_Name;
+            std::string m_Uuid;
+            std::string m_Material;
+            ILicense    m_License;
+            IMesh       m_Mesh;
+            IMesh       m_SeedMesh;
+            IMesh       m_ProxySeedMesh;
+            IProxy      m_Proxy;
+            Vector3F    m_Offset;
+            float       m_Scale;
+            bool        m_IsSubdivided;
+        };
 
-                virtual ~IMatrix4x4();
+        typedef std::vector<IGeometry*> IGeometries;
 
-                /**
-                * Gets the value
-                *@return the value
-                */
-                virtual Matrix4x4F GetValue() const;
-
-                /**
-                * Sets the value
-                *@param value - the value to set
-                */
-                virtual void SetValue(const Matrix4x4F& value);
-
-            private:
-                Matrix4x4F m_Value;
+        /**
+        * Model
+        */
+        struct IModel
+        {
+            ISkeleton   m_Skeleton;
+            IMaterials  m_Materials; // NEED DEL
+            IGeometries m_Geometries; // NEED DEL
         };
 
         MHX2Reader();
@@ -262,52 +236,7 @@ class MHX2Reader
         virtual bool Read(const std::string& data);
 
     private:
-        IItem* m_pRoot;
+        IModel* m_pModel;
 
-        bool ReadLine(const std::string& data, const std::size_t startIndex, const std::size_t endIndex, IItem*& pParent);
-
-        bool ReadKeyValue(const std::string& data,
-                          const std::size_t  keyStart,
-                          const std::size_t  keyEnd,
-                          const std::size_t  valueStart,
-                          const std::size_t  valueEnd,
-                                IItem*&      pParent);
+        bool Parse(json_value* pJsonParent, IModel* pModel);
 };
-
-//---------------------------------------------------------------------------
-// MHX2Reader::IValue
-//---------------------------------------------------------------------------
-template <class T>
-MHX2Reader::IValue<T>::IValue() :
-    IItem(),
-    m_Value(T(0))
-{}
-//---------------------------------------------------------------------------
-template <class T>
-MHX2Reader::IValue<T>::IValue(T value) :
-    IItem(),
-    m_Value(value)
-{}
-//---------------------------------------------------------------------------
-template <class T>
-MHX2Reader::IValue<T>::IValue(const std::string& name, T value) :
-    IItem(name),
-    m_Value(value)
-{}
-//---------------------------------------------------------------------------
-template <class T>
-MHX2Reader::IValue<T>::~IValue()
-{}
-//---------------------------------------------------------------------------
-template <class T>
-T MHX2Reader::IValue<T>::GetValue() const
-{
-    return m_Value;
-}
-//---------------------------------------------------------------------------
-template <class T>
-void MHX2Reader::IValue<T>::SetValue(T value)
-{
-    m_Value = value;
-}
-//---------------------------------------------------------------------------

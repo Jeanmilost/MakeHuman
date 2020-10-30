@@ -28,170 +28,17 @@
 
 #include "MHX2Reader.h"
 
-// libraries
-#include "json.h"
-
-//---------------------------------------------------------------------------
-// MHX2Reader::IItem
-//---------------------------------------------------------------------------
-MHX2Reader::IItem::IItem() :
-    m_pParent(nullptr),
-    m_IsArray(false)
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IItem::IItem(const std::string& name, IItem* pParent, bool isArray) :
-    m_Key(name),
-    m_pParent(pParent),
-    m_IsArray(isArray)
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IItem::~IItem()
-{
-    const std::size_t count = m_Items.size();
-
-    // clera the items
-    for (std::size_t i = 0; i < count; ++i)
-        delete m_Items[i];
-}
-//---------------------------------------------------------------------------
-std::string MHX2Reader::IItem::GetKey() const
-{
-    return m_Key;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::SetKey(const std::string& name)
-{
-    m_Key = name;
-}
-//---------------------------------------------------------------------------
-MHX2Reader::IItem* MHX2Reader::IItem::GetParent() const
-{
-    return m_pParent;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::SetParent(IItem* pParent)
-{
-    m_pParent = pParent;
-}
-//---------------------------------------------------------------------------
-bool MHX2Reader::IItem::GetIsArray() const
-{
-    return m_IsArray;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::SetIsArray(bool value)
-{
-    m_IsArray = value;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::AddChild(IItem* pChild)
-{
-    const std::size_t itemCount = m_Items.size();
-
-    // check if item was already added, to not add it twice
-    for (std::size_t i = 0; i < itemCount; ++i)
-        if (m_Items[i] == pChild)
-            return;
-
-    m_Items.push_back(pChild);
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::DeleteChild(IItem* pChild)
-{
-    const std::size_t itemCount = m_Items.size();
-
-    // check if item was already added, to not add it twice
-    for (std::size_t i = 0; i < itemCount; ++i)
-        if (m_Items[i] == pChild)
-        {
-            delete m_Items[i];
-            m_Items.erase(m_Items.begin() + i);
-            return;
-        }
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IItem::DeleteChildAt(std::size_t index)
-{
-    // is index out of bounds?
-    if (index >= m_Items.size())
-        return;
-
-    delete m_Items[index];
-    m_Items.erase(m_Items.begin() + index);
-}
-//---------------------------------------------------------------------------
-MHX2Reader::IItem* MHX2Reader::IItem::GetChildAt(std::size_t index) const
-{
-    // is index out of bounds?
-    if (index >= m_Items.size())
-        return nullptr;
-
-    return m_Items[index];
-}
-//---------------------------------------------------------------------------
-std::size_t MHX2Reader::IItem::GetChildCount() const
-{
-    return m_Items.size();
-}
-//---------------------------------------------------------------------------
-// MHX2Reader::IVector3
-//---------------------------------------------------------------------------
-MHX2Reader::IVector3::IVector3() :
-    IItem()
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IVector3::IVector3(const std::string& name, const Vector3F& value) :
-    IItem(name),
-    m_Value(value)
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IVector3::~IVector3()
-{}
-//---------------------------------------------------------------------------
-Vector3F MHX2Reader::IVector3::GetValue() const
-{
-    return m_Value;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IVector3::SetValue(const Vector3F& value)
-{
-    m_Value = value;
-}
-//---------------------------------------------------------------------------
-// MHX2Reader::IMatrix4x4
-//---------------------------------------------------------------------------
-MHX2Reader::IMatrix4x4::IMatrix4x4() :
-    IItem()
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IMatrix4x4::IMatrix4x4(const std::string& name, const Matrix4x4F& value) :
-    IItem(name),
-    m_Value(value)
-{}
-//---------------------------------------------------------------------------
-MHX2Reader::IMatrix4x4::~IMatrix4x4()
-{}
-//---------------------------------------------------------------------------
-Matrix4x4F MHX2Reader::IMatrix4x4::GetValue() const
-{
-    return m_Value;
-}
-//---------------------------------------------------------------------------
-void MHX2Reader::IMatrix4x4::SetValue(const Matrix4x4F& value)
-{
-    m_Value = value;
-}
 //---------------------------------------------------------------------------
 // MHX2Reader
 //---------------------------------------------------------------------------
 MHX2Reader::MHX2Reader() :
-    m_pRoot(nullptr)
+    m_pModel(nullptr)
 {}
 //---------------------------------------------------------------------------
 MHX2Reader::~MHX2Reader()
 {
-    if (m_pRoot)
-        delete m_pRoot;
+    if (m_pModel)
+        delete m_pModel;
 }
 //---------------------------------------------------------------------------
 bool MHX2Reader::Open(const std::string& fileName)
@@ -264,11 +111,11 @@ bool MHX2Reader::Open(const std::string& fileName)
 //---------------------------------------------------------------------------
 bool MHX2Reader::Read(const std::string& data)
 {
-    // delete any previously opened file
-    if (m_pRoot)
+    // delete any previously opened model
+    if (m_pModel)
     {
-        delete m_pRoot;
-        m_pRoot = nullptr;
+        delete m_pModel;
+        m_pModel = nullptr;
     }
 
     char*           pErrorPos  = 0;
@@ -283,6 +130,62 @@ bool MHX2Reader::Read(const std::string& data)
     if (!pJsonRoot || pJsonRoot->type != JSON_OBJECT)
         return false;
 
-    return true;
+    // create the model
+    m_pModel = new IModel();
 
+    return Parse(pJsonRoot, m_pModel);
+}
+//---------------------------------------------------------------------------
+/*REM
+#include <Windows.h>
+#include <sstream>
+#define INDENT(n) for (int i = 0; i < n; ++i) ::OutputDebugStringA("    ")
+void print(json_value* value, int indent = 0)
+{
+    INDENT(indent);
+    if (value->name) ::OutputDebugStringA((std::string(value->name) + "=").c_str());
+    switch (value->type)
+    {
+        case JSON_NULL:
+            ::OutputDebugStringA("null\n");
+            break;
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            ::OutputDebugStringA(value->type == JSON_OBJECT ? "{\n" : "[\n");
+            for (json_value* it = value->first_child; it; it = it->next_sibling)
+            {
+                print(it, indent + 1);
+            }
+            INDENT(indent);
+            ::OutputDebugStringA(value->type == JSON_OBJECT ? "}\n" : "]\n");
+            break;
+        case JSON_STRING:
+            ::OutputDebugStringA((std::string(value->string_value) + "\n").c_str());
+            break;
+        case JSON_INT:
+        {
+            std::ostringstream sstr;
+            sstr << value->int_value;
+            ::OutputDebugStringA((sstr.str() + "\n").c_str());
+            break;
+        }
+        case JSON_FLOAT:
+        {
+            std::ostringstream sstr;
+            sstr << value->float_value;
+            ::OutputDebugStringA((sstr.str() + "\n").c_str());
+            break;
+        }
+        case JSON_BOOL:
+            ::OutputDebugStringA(value->int_value ? "true\n" : "false\n");
+            break;
+    }
+}
+*/
+bool MHX2Reader::Parse(json_value* pJsonParent, IModel* pModel)
+{
+    //print(pJsonParent);
+
+    return true;
+}
 //---------------------------------------------------------------------------

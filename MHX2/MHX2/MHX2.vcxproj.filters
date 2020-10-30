@@ -45,6 +45,9 @@
     <ClInclude Include="json\json.h">
       <Filter>json</Filter>
     </ClInclude>
+    <ClInclude Include="Color.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MHX2.cpp">
@@ -64,6 +67,9 @@
     </ClCompile>
     <ClCompile Include="json\json.cpp">
       <Filter>json</Filter>
+    </ClCompile>
+    <ClCompile Include="Color.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -54,16 +54,57 @@ class MHX2Reader
         typedef std::vector<Vector3F*>   IVertices;
 
         /**
+        * Item
+        */
+        struct IItem
+        {
+            IItem();
+            virtual ~IItem();
+
+            /**
+            * Parses the vector data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] vector - vector to populate
+            *@param[in, out] index - vector index
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, std::string& error) const;
+
+            /**
+            * Parses the matrix data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] matrix - matrix to populate
+            *@param[in, out] x - matrix x index
+            *@param[in, out] y - matrix y index
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, std::string& error) const;
+        };
+
+        /**
         * Bone
         */
-        struct IBone
+        struct IBone : public IItem
         {
             std::string m_Name;
-            std::string m_ParentName;
+            std::string m_Parent;
             Vector3F    m_Head;
             Vector3F    m_Tail;
             float       m_Roll;
             Matrix4x4F  m_Matrix;
+
+            IBone();
+            virtual ~IBone();
+
+            /**
+            * Parses the bone data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, std::string& error);
         };
 
         typedef std::vector<IBone*> IBones;
@@ -71,18 +112,29 @@ class MHX2Reader
         /**
         * Skeleton
         */
-        struct ISkeleton
+        struct ISkeleton : public IItem
         {
             std::string m_Name;
             Vector3F    m_Offset;
             float       m_Scale;
-            IBones      m_Bones; // NEED DEL
+            IBones      m_Bones;
+
+            ISkeleton();
+            virtual ~ISkeleton();
+
+            /**
+            * Parses the skeleton data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, std::string& error);
         };
 
         /**
         * Material
         */
-        struct IMaterial
+        struct IMaterial : public IItem
         {
             std::string m_Name;
             std::string m_DiffuseTexture;
@@ -112,7 +164,7 @@ class MHX2Reader
         /**
         * License
         */
-        struct ILicense
+        struct ILicense : public IItem
         {
             std::string m_Author;
             std::string m_License;
@@ -122,7 +174,7 @@ class MHX2Reader
         /**
         * Face
         */
-        struct IFace
+        struct IFace : public IItem
         {
             IIntValues m_Values;
         };
@@ -132,7 +184,7 @@ class MHX2Reader
         /**
         * UV coord
         */
-        struct IUVCoord
+        struct IUVCoord : public IItem
         {
             float m_X;
             float m_Y;
@@ -143,7 +195,7 @@ class MHX2Reader
         /**
         * Weight
         */
-        struct IWeight
+        struct IWeight : public IItem
         {
             std::string  m_Name;
             IFloatValues m_Values;
@@ -154,7 +206,7 @@ class MHX2Reader
         /**
         * Fit
         */
-        struct IFit
+        struct IFit : public IItem
         {
             IVertices m_Values;
         };
@@ -164,7 +216,7 @@ class MHX2Reader
         /**
         * Mesh
         */
-        struct IMesh
+        struct IMesh : public IItem
         {
             IVertices   m_Vertices; // NEED DEL
             IFaces      m_Faces;    // NEED DEL
@@ -176,7 +228,7 @@ class MHX2Reader
         /**
         * Proxy
         */
-        struct IProxy
+        struct IProxy : public IItem
         {
             std::string   m_Name;
             std::string   m_Type;
@@ -191,7 +243,7 @@ class MHX2Reader
         /**
         * Geometry
         */
-        struct IGeometry
+        struct IGeometry : public IItem
         {
             std::string m_Name;
             std::string m_Uuid;
@@ -203,6 +255,7 @@ class MHX2Reader
             IProxy      m_Proxy;
             Vector3F    m_Offset;
             float       m_Scale;
+            bool        m_IsHuman;
             bool        m_IsSubdivided;
         };
 
@@ -211,7 +264,7 @@ class MHX2Reader
         /**
         * Model
         */
-        struct IModel
+        struct IModel : public IItem
         {
             ISkeleton   m_Skeleton;
             IMaterials  m_Materials; // NEED DEL
@@ -223,20 +276,49 @@ class MHX2Reader
 
         /**
         * Opens a .mhx2 file
-        *@param fileName - .mhx2 file to open
+        *@param fileName - mhx2 file to open
         *@return true on success, otherwise false
         */
         virtual bool Open(const std::string& fileName);
 
         /**
-        * Reads a .mhx2 data
-        *@param data - .mhx2 data to open
+        * Reads a mhx2 data
+        *@param data - mhx2 data to open
         *@return true on success, otherwise false
         */
         virtual bool Read(const std::string& data);
 
     private:
+        /**
+        * Item type
+        */
+        enum IEType
+        {
+            IE_T_Unknown = 0,
+            IE_T_Model,
+            IE_T_License,
+            IE_T_Skeleton,
+            IE_T_Bones,
+            IE_T_Matrix,
+            IE_T_Materials,
+            IE_T_Geometries,
+            IE_T_Mesh,
+            IE_T_SeedMesh,
+            IE_T_ProxySeedMesh,
+            IE_T_Proxy,
+            IE_T_Weights,
+        };
+
         IModel* m_pModel;
 
-        bool Parse(json_value* pJsonParent, IModel* pModel);
+        /**
+        * Parse the data
+        *@param pJson - json value
+        *@param pModel - mhx2 model
+        *@param type - data type
+        *@return true on success, otherwise false
+        */
+        bool Parse(json_value* pJson, IModel* pModel, IEType type);
+
+        IEType NameToType(const std::string& name) const;
 };

@@ -266,6 +266,7 @@ class MHX2Reader
         */
         struct IModel : public IItem
         {
+            std::string m_Version;
             ISkeleton   m_Skeleton;
             IMaterials  m_Materials; // NEED DEL
             IGeometries m_Geometries; // NEED DEL
@@ -315,10 +316,10 @@ class MHX2Reader
         * Parse the data
         *@param pJson - json value
         *@param pModel - mhx2 model
-        *@param type - data type
+        *@param[out] error - last error
         *@return true on success, otherwise false
         */
-        bool Parse(json_value* pJson, IModel* pModel, IEType type);
+        bool Parse(json_value* pJson, IModel* pModel, std::string& error);
 
         IEType NameToType(const std::string& name) const;
 };

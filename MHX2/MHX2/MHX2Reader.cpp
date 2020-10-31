@@ -168,7 +168,7 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
             // search for name
             if (!pJson->name)
             {
-                // if no name and only one child, assume that it's the bone class itself, so iterate through children
+                // if no name, assume that it's the bone class itself, so iterate through children
                 for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     if (!Parse(it, error))
                         return false;
@@ -265,6 +265,87 @@ MHX2Reader::ISkeleton::~ISkeleton()
 //---------------------------------------------------------------------------
 bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
 {
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+        {
+            // search for name
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "skeleton") == 0)
+                {
+                    // skeleton class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, error))
+                            return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "offset") == 0)
+                {
+                    std::size_t index = 0;
+                    return ParseVector(pJson, m_Offset, index, error);
+                }
+                else
+                if (std::strcmp(pJson->name, "bones") == 0)
+                {
+                    // bone array, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    {
+                        std::unique_ptr<IBone> pBone(new IBone());
+
+                        if (!pBone->Parse(it, error))
+                            return false;
+
+                        m_Bones.push_back(pBone.get());
+                        pBone.release();
+                    }
+
+                    return true;
+                }
+
+            error = "Parse skeleton - unknown object or array";
+            return false;
+        }
+
+        case JSON_STRING:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "name") == 0)
+                {
+                    m_Name = pJson->string_value;
+                    return true;
+                }
+
+            error = "Parse skeleton - unknown string value";
+            return false;
+
+        case JSON_INT:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "scale") == 0)
+                {
+                    m_Scale = float(pJson->int_value);
+                    return true;
+                }
+
+            error = "Parse skeleton - unknown int value";
+            return false;
+
+        case JSON_FLOAT:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "scale") == 0)
+                {
+                    m_Scale = pJson->float_value;
+                    return true;
+                }
+
+            error = "Parse skeleton - unknown float value";
+            return false;
+    }
+
     error = "Parse skeleton - unknown data type";
     return false;
 }
@@ -373,7 +454,9 @@ bool MHX2Reader::Read(const std::string& data)
     // create the model
     m_pModel = new IModel();
 
-    return Parse(pJson, m_pModel, IE_T_Model);
+    std::string error;
+
+    return Parse(pJson, m_pModel, error);
 }
 //---------------------------------------------------------------------------
 /*REM
@@ -422,16 +505,24 @@ void print(json_value* value, int indent = 0)
     }
 }
 */
-bool MHX2Reader::Parse(json_value* pJson, IModel* pModel, IEType type)
+bool MHX2Reader::Parse(json_value* pJson, IModel* pModel, std::string& error)
 {
     switch (pJson->type)
     {
-        case JSON_NULL:
-            break;
-
         case JSON_OBJECT:
         case JSON_ARRAY:
         {
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "skeleton") == 0)
+                {
+                    std::string error;
+
+                    if (!pModel->m_Skeleton.Parse(pJson, error))
+                        return false;
+
+                    return true;
+                }
+
             IEType itemType = IE_T_Unknown;
 
             if (pJson->name)
@@ -441,6 +532,20 @@ bool MHX2Reader::Parse(json_value* pJson, IModel* pModel, IEType type)
 
             switch (itemType)
             {
+                /*REM
+                case IE_T_Skeleton:
+                {
+                    std::unique_ptr<ISkeleton> pSkeleton(new ISkeleton());
+                    std::string error;
+
+                    if (!pSkeleton->Parse(pJson, error))
+                        return false;
+
+                    std::string test = "";
+                }
+                */
+
+                /*
                 case IE_T_Bones:
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
@@ -454,31 +559,33 @@ bool MHX2Reader::Parse(json_value* pJson, IModel* pModel, IEType type)
                     }
 
                     return true;
+                */
 
                 default:
-                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                        if (!Parse(it, pModel, itemType))
-                            return false;
-
-                    return true;
+                    break;
             }
 
-            return false;
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it, pModel, error))
+                    return false;
+
+            return true;
         }
 
         case JSON_STRING:
-            return true;
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "mhx2_version") == 0)
+                {
+                    pModel->m_Version = pJson->string_value;
+                    return true;
+                }
 
-        case JSON_INT:
-            return true;
-
-        case JSON_FLOAT:
-            return true;
-
-        case JSON_BOOL:
-            return true;
+            error = "Parse model - unknown string value";
+            return false;
     }
 
+    error = "Parse model - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------

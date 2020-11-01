@@ -286,7 +286,7 @@ class MHX2Reader
         {
             float       m_X;
             float       m_Y;
-            std::size_t m_Index;
+            std::size_t m_InternalIndex;
 
             IUVCoord();
             virtual ~IUVCoord();
@@ -307,11 +307,45 @@ class MHX2Reader
         */
         struct IWeight : public IItem
         {
-            std::string  m_Name;
-            IFloatValues m_Values;
+            std::size_t m_Index;
+            std::size_t m_InternalIndex;
+            float       m_Value;
+
+            IWeight();
+            virtual ~IWeight();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IWeight*> IWeights;
+
+        /**
+        * Weight group
+        */
+        struct IWeightGroup : public IItem
+        {
+            std::string m_Key;
+            IWeights    m_Weights;
+
+            IWeightGroup();
+            virtual ~IWeightGroup();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
+        };
+
+        typedef std::vector<IWeightGroup*> IWeightGroups;
 
         /**
         * Fit
@@ -328,11 +362,11 @@ class MHX2Reader
         */
         struct IMesh : public IItem
         {
-            IVertices   m_Vertices;
-            IFaces      m_Faces;
-            IUVCoords   m_UVCoords;
-            IFaces      m_UVFaces;
-            IWeights    m_Weights;
+            IVertices     m_Vertices;
+            IFaces        m_Faces;
+            IUVCoords     m_UVCoords;
+            IFaces        m_UVFaces;
+            IWeightGroups m_WeightGroups;
 
             IMesh();
             virtual ~IMesh();

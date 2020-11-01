@@ -864,10 +864,10 @@ bool MHX2Reader::IFace::Parse(json_value* pJson, ILogger& logger)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-                // iterate through children, each of them contains a face value
-                for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    if (!Parse(it, logger))
-                        return false;
+            // iterate through children, each of them contains a face value
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it, logger))
+                    return false;
 
             return true;
 
@@ -888,7 +888,9 @@ bool MHX2Reader::IFace::Parse(json_value* pJson, ILogger& logger)
 //---------------------------------------------------------------------------
 MHX2Reader::IUVCoord::IUVCoord() :
     IItem(),
-    m_Index(0)
+    m_X(0.0f),
+    m_Y(0.0f),
+    m_InternalIndex(0)
 {}
 //---------------------------------------------------------------------------
 MHX2Reader::IUVCoord::~IUVCoord()
@@ -899,14 +901,14 @@ bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
     // no source data?
     if (!pJson)
     {
-        logger.Log("Parse face - json data source is missing");
+        logger.Log("Parse uv coords - json data source is missing");
         return false;
     }
 
-    // is x index out of bounds?
-    if (m_Index >= 2)
+    // is index out of bounds?
+    if (m_InternalIndex >= 2)
     {
-        logger.Log(pJson, "Parse face - index is out of bounds", m_Index);
+        logger.Log(pJson, "Parse uv coords - index is out of bounds", m_InternalIndex);
         return false;
     }
 
@@ -915,41 +917,159 @@ bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-                // iterate through children, each of them contains a face value
-                for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    if (!Parse(it, logger))
-                        return false;
+            // iterate through children, each of them contains an uv coodrinate value
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it, logger))
+                    return false;
 
             return true;
 
         case JSON_INT:
             // read the value
-            switch (m_Index)
+            switch (m_InternalIndex)
             {
                 case 0: m_X = float(pJson->int_value); break;
                 case 1: m_Y = float(pJson->int_value); break;
 
                 default:
-                    logger.Log(pJson, "Parse face - index is out of bounds", m_Index);
+                    logger.Log(pJson, "Parse uv coords - index is out of bounds", m_InternalIndex);
                     return false;
             }
 
-            ++m_Index;
+            ++m_InternalIndex;
             return true;
 
         case JSON_FLOAT:
             // read the value
-            switch (m_Index)
+            switch (m_InternalIndex)
             {
                 case 0: m_X = pJson->float_value; break;
                 case 1: m_Y = pJson->float_value; break;
 
                 default:
-                    logger.Log(pJson, "Parse face - index is out of bounds", m_Index);
+                    logger.Log(pJson, "Parse uv coords - index is out of bounds", m_InternalIndex);
                     return false;
             }
 
-            ++m_Index;
+            ++m_InternalIndex;
+            return true;
+    }
+
+    logger.Log(pJson, "Parse uv coords - unknown type");
+    return false;
+}
+//---------------------------------------------------------------------------
+// MHX2Reader::IWeight
+//---------------------------------------------------------------------------
+MHX2Reader::IWeight::IWeight() :
+    IItem(),
+    m_Index(0),
+    m_InternalIndex(0),
+    m_Value(0.0f)
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::IWeight::~IWeight()
+{}
+//---------------------------------------------------------------------------
+bool MHX2Reader::IWeight::Parse(json_value* pJson, ILogger& logger)
+{
+    // no source data?
+    if (!pJson)
+    {
+        logger.Log("Parse weight - json data source is missing");
+        return false;
+    }
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // iterate through children, each of them contains a weight
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it, logger))
+                    return false;
+
+            return true;
+
+        case JSON_INT:
+            switch (m_InternalIndex)
+            {
+                case 0: m_Index =       pJson->int_value;  break;
+                case 1: m_Value = float(pJson->int_value); break;
+
+                default:
+                    logger.Log(pJson, "Parse weight - index is out of bounds", m_InternalIndex);
+                    return false;
+            }
+
+            ++m_InternalIndex;
+            return true;
+
+        case JSON_FLOAT:
+            switch (m_InternalIndex)
+            {
+                case 0: m_Index = std::size_t(pJson->float_value); break;
+                case 1: m_Value =             pJson->float_value;  break;
+
+                default:
+                    logger.Log(pJson, "Parse weight - index is out of bounds", m_InternalIndex);
+                    return false;
+            }
+
+            ++m_InternalIndex;
+            return true;
+    }
+
+    logger.Log(pJson, "Parse weight - unknown type");
+    return false;
+}
+//---------------------------------------------------------------------------
+// MHX2Reader::IWeightGroup
+//---------------------------------------------------------------------------
+MHX2Reader::IWeightGroup::IWeightGroup() :
+    IItem()
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::IWeightGroup::~IWeightGroup()
+{
+    const std::size_t weightCount = m_Weights.size();
+
+    // iterate through weights and delete them
+    for (std::size_t i = 0; i < weightCount; ++i)
+        delete m_Weights[i];
+}
+//---------------------------------------------------------------------------
+bool MHX2Reader::IWeightGroup::Parse(json_value* pJson, ILogger& logger)
+{
+    // no source data?
+    if (!pJson)
+    {
+        logger.Log("Parse weight group - json data source is missing");
+        return false;
+    }
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // keep the name, it's the key to retrieve the linked bone
+            if (pJson->name)
+                m_Key = pJson->name;
+
+            // iterate through children, each of them contains a weight group
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+            {
+                std::unique_ptr<IWeight> pWeight(new IWeight());
+
+                if (!pWeight->Parse(it, logger))
+                    return false;
+
+                m_Weights.push_back(pWeight.get());
+                pWeight.release();
+            }
+
             return true;
     }
 
@@ -988,11 +1108,11 @@ MHX2Reader::IMesh::~IMesh()
     for (std::size_t i = 0; i < uvFaceCount; ++i)
         delete m_UVFaces[i];
 
-    const std::size_t count = m_Weights.size();
+    const std::size_t weightGroupCount = m_WeightGroups.size();
 
-    // iterate through weights and delete them
-    for (std::size_t i = 0; i < count; ++i)
-        delete m_Weights[i];
+    // iterate through weight groups and delete them
+    for (std::size_t i = 0; i < weightGroupCount; ++i)
+        delete m_WeightGroups[i];
 }
 //---------------------------------------------------------------------------
 bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
@@ -1078,13 +1198,30 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                     // uv faces, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IFace> pFace(new IFace());
+                        std::unique_ptr<IFace> pUvFace(new IFace());
 
-                        if (!pFace->Parse(it, logger))
+                        if (!pUvFace->Parse(it, logger))
                             return false;
 
-                        m_Faces.push_back(pFace.get());
-                        pFace.release();
+                        m_UVFaces.push_back(pUvFace.get());
+                        pUvFace.release();
+                    }
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "weights") == 0)
+                {
+                    // weight groups, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    {
+                        std::unique_ptr<IWeightGroup> pWeightGroup(new IWeightGroup());
+
+                        if (!pWeightGroup->Parse(it, logger))
+                            return false;
+
+                        m_WeightGroups.push_back(pWeightGroup.get());
+                        pWeightGroup.release();
                     }
 
                     return true;

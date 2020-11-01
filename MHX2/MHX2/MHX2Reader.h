@@ -62,6 +62,16 @@ class MHX2Reader
             virtual ~IItem();
 
             /**
+            * Parses the color data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] color - color to populate
+            *@param[in, out] index - vector index
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool ParseColor(json_value* pJson, ColorF& color, std::size_t& index, std::string& error) const;
+
+            /**
             * Parses the vector data from a json object
             *@param pJson - json object containing the data to parse
             *@param[out] vector - vector to populate
@@ -140,8 +150,10 @@ class MHX2Reader
             std::string m_DiffuseTexture;
             ColorF      m_Ambient;
             ColorF      m_Diffuse;
+            ColorF      m_Specular;
             ColorF      m_Emissive;
             float       m_DiffuseMapIntensity;
+            float       m_SpecularMapIntensity;
             float       m_TransparencyMapIntensity;
             float       m_Shininess;
             float       m_Opacity;
@@ -156,7 +168,19 @@ class MHX2Reader
             bool        m_BackfaceCull;
             bool        m_Depthless;
             bool        m_CastShadows;
+            bool        m_ReceiveShadows;
             bool        m_SssEnabled;
+
+            IMaterial();
+            virtual ~IMaterial();
+
+            /**
+            * Parses the material data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[out] error - last error
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, std::string& error);
         };
 
         typedef std::vector<IMaterial*> IMaterials;
@@ -268,8 +292,11 @@ class MHX2Reader
         {
             std::string m_Version;
             ISkeleton   m_Skeleton;
-            IMaterials  m_Materials; // NEED DEL
-            IGeometries m_Geometries; // NEED DEL
+            IMaterials  m_Materials;
+            IGeometries m_Geometries;
+
+            IModel();
+            virtual ~IModel();
         };
 
         MHX2Reader();

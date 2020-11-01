@@ -66,20 +66,18 @@ class MHX2Reader
             *@param pJson - json object containing the data to parse
             *@param[out] color - color to populate
             *@param[in, out] index - vector index
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool ParseColor(json_value* pJson, ColorF& color, std::size_t& index, std::string& error) const;
+            virtual bool ParseColor(json_value* pJson, ColorF& color, std::size_t& index) const;
 
             /**
             * Parses the vector data from a json object
             *@param pJson - json object containing the data to parse
             *@param[out] vector - vector to populate
             *@param[in, out] index - vector index
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, std::string& error) const;
+            virtual bool ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index) const;
 
             /**
             * Parses the matrix data from a json object
@@ -87,10 +85,9 @@ class MHX2Reader
             *@param[out] matrix - matrix to populate
             *@param[in, out] x - matrix x index
             *@param[in, out] y - matrix y index
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, std::string& error) const;
+            virtual bool ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y) const;
         };
 
         /**
@@ -111,10 +108,9 @@ class MHX2Reader
             /**
             * Parses the bone data from a json object
             *@param pJson - json object containing the data to parse
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson, std::string& error);
+            virtual bool Parse(json_value* pJson);
         };
 
         typedef std::vector<IBone*> IBones;
@@ -135,10 +131,9 @@ class MHX2Reader
             /**
             * Parses the skeleton data from a json object
             *@param pJson - json object containing the data to parse
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson, std::string& error);
+            virtual bool Parse(json_value* pJson);
         };
 
         /**
@@ -148,6 +143,7 @@ class MHX2Reader
         {
             std::string m_Name;
             std::string m_DiffuseTexture;
+            std::string m_NormalMapTexture;
             ColorF      m_Ambient;
             ColorF      m_Diffuse;
             ColorF      m_Specular;
@@ -177,10 +173,9 @@ class MHX2Reader
             /**
             * Parses the material data from a json object
             *@param pJson - json object containing the data to parse
-            *@param[out] error - last error
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson, std::string& error);
+            virtual bool Parse(json_value* pJson);
         };
 
         typedef std::vector<IMaterial*> IMaterials;
@@ -193,6 +188,16 @@ class MHX2Reader
             std::string m_Author;
             std::string m_License;
             std::string m_Homepage;
+
+            ILicense();
+            virtual ~ILicense();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson);
         };
 
         /**
@@ -281,6 +286,16 @@ class MHX2Reader
             float       m_Scale;
             bool        m_IsHuman;
             bool        m_IsSubdivided;
+
+            IGeometry();
+            virtual ~IGeometry();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson);
         };
 
         typedef std::vector<IGeometry*> IGeometries;
@@ -297,6 +312,13 @@ class MHX2Reader
 
             IModel();
             virtual ~IModel();
+
+            /**
+            * Parses the model data from a json object
+            *@param pJson - json object containing the data to parse
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson);
         };
 
         MHX2Reader();
@@ -338,15 +360,4 @@ class MHX2Reader
         };
 
         IModel* m_pModel;
-
-        /**
-        * Parse the data
-        *@param pJson - json value
-        *@param pModel - mhx2 model
-        *@param[out] error - last error
-        *@return true on success, otherwise false
-        */
-        bool Parse(json_value* pJson, IModel* pModel, std::string& error);
-
-        IEType NameToType(const std::string& name) const;
 };

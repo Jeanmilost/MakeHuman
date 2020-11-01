@@ -37,35 +37,27 @@ MHX2Reader::IItem::IItem()
 MHX2Reader::IItem::~IItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t& index, std::string& error) const
+bool MHX2Reader::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t& index) const
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse color - no json source";
         return false;
-    }
 
     // is index out of bounds?
     if (index >= 4)
-    {
-        error = "Parse color - index is out of bounds";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // read color values
             for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                if (!ParseColor(it, color, index, error))
+                if (!ParseColor(it, color, index))
                     return false;
 
             return true;
-        }
 
         case JSON_INT:
             // read the next value. May be an int if value is 0 or 1
@@ -96,39 +88,30 @@ bool MHX2Reader::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t
             return true;
     }
 
-    error = "Parse color - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, std::string& error) const
+bool MHX2Reader::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index) const
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse vector - no json source";
         return false;
-    }
 
     // is index out of bounds?
     if (index >= 3)
-    {
-        error = "Parse vector - index is out of bounds";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // read vector values
             for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                if (!ParseVector(it, vector, index, error))
+                if (!ParseVector(it, vector, index))
                     return false;
 
             return true;
-        }
 
         case JSON_INT:
             // read the next value. May be an int if value is 0 or 1
@@ -157,42 +140,33 @@ bool MHX2Reader::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::si
             return true;
     }
 
-    error = "Parse vector - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, std::string& error) const
+bool MHX2Reader::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y) const
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse matrix - no json source";
         return false;
-    }
 
     // is x or y index out of bounds?
     if (x >= 4 || y >= 4)
-    {
-        error = "Parse matrix - index is out of bounds";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // read matrix line
             for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                if (!ParseMatrix(it, matrix, x, y, error))
+                if (!ParseMatrix(it, matrix, x, y))
                     return false;
 
             // go to next line
             x = 0;
             ++y;
             return true;
-        }
 
         case JSON_INT:
             // read the next value. May be an int if value is 0 or 1
@@ -207,7 +181,6 @@ bool MHX2Reader::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::
             return true;
     }
 
-    error = "Parse matrix - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------
@@ -221,27 +194,23 @@ MHX2Reader::IBone::IBone() :
 MHX2Reader::IBone::~IBone()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
+bool MHX2Reader::IBone::Parse(json_value* pJson)
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse bone - no json source";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // search for name
             if (!pJson->name)
             {
                 // if no name, assume that it's the bone class itself, so iterate through children
                 for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    if (!Parse(it, error))
+                    if (!Parse(it))
                         return false;
 
                 return true;
@@ -250,13 +219,13 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
             if (std::strcmp(pJson->name, "head") == 0)
             {
                 std::size_t index = 0;
-                return ParseVector(pJson, m_Head, index, error);
+                return ParseVector(pJson, m_Head, index);
             }
             else
             if (std::strcmp(pJson->name, "tail") == 0)
             {
                 std::size_t index = 0;
-                return ParseVector(pJson, m_Tail, index, error);
+                return ParseVector(pJson, m_Tail, index);
             }
             else
             if (std::strcmp(pJson->name, "matrix") == 0)
@@ -264,12 +233,10 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
                 std::size_t x = 0;
                 std::size_t y = 0;
 
-                return IItem::ParseMatrix(pJson, m_Matrix, x, y, error);
+                return IItem::ParseMatrix(pJson, m_Matrix, x, y);
             }
 
-            error = "Parse bone - unknown object or array";
             return false;
-        }
 
         case JSON_STRING:
             // read the value
@@ -286,7 +253,6 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse bone - unknown string value";
             return false;
 
         case JSON_INT:
@@ -298,7 +264,6 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse bone - unknown int value";
             return false;
 
         case JSON_FLOAT:
@@ -310,11 +275,9 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse bone - unknown float value";
             return false;
     }
 
-    error = "Parse bone - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------
@@ -334,28 +297,24 @@ MHX2Reader::ISkeleton::~ISkeleton()
         delete m_Bones[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
+bool MHX2Reader::ISkeleton::Parse(json_value* pJson)
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse skeleton - no json source";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // search for name
             if (pJson->name)
                 if (std::strcmp(pJson->name, "skeleton") == 0)
                 {
                     // skeleton class, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                        if (!Parse(it, error))
+                        if (!Parse(it))
                             return false;
 
                     return true;
@@ -364,7 +323,7 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                 if (std::strcmp(pJson->name, "offset") == 0)
                 {
                     std::size_t index = 0;
-                    return ParseVector(pJson, m_Offset, index, error);
+                    return ParseVector(pJson, m_Offset, index);
                 }
                 else
                 if (std::strcmp(pJson->name, "bones") == 0)
@@ -374,7 +333,7 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                     {
                         std::unique_ptr<IBone> pBone(new IBone());
 
-                        if (!pBone->Parse(it, error))
+                        if (!pBone->Parse(it))
                             return false;
 
                         m_Bones.push_back(pBone.get());
@@ -384,9 +343,7 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse skeleton - unknown object or array";
             return false;
-        }
 
         case JSON_STRING:
             // read the value
@@ -397,7 +354,6 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse skeleton - unknown string value";
             return false;
 
         case JSON_INT:
@@ -409,7 +365,6 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse skeleton - unknown int value";
             return false;
 
         case JSON_FLOAT:
@@ -421,11 +376,9 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse skeleton - unknown float value";
             return false;
     }
 
-    error = "Parse skeleton - unknown data type";
     return false;
 }
 //---------------------------------------------------------------------------
@@ -459,27 +412,23 @@ MHX2Reader::IMaterial::IMaterial() :
 MHX2Reader::IMaterial::~IMaterial()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
+bool MHX2Reader::IMaterial::Parse(json_value* pJson)
 {
     // no source data?
     if (!pJson)
-    {
-        error = "Parse material - no json source";
         return false;
-    }
 
     // dispatch json type
     switch (pJson->type)
     {
         case JSON_OBJECT:
         case JSON_ARRAY:
-        {
             // search for name
             if (!pJson->name)
             {
                 // if no name, assume that it's the material class itself, so iterate through children
                 for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    if (!Parse(it, error))
+                    if (!Parse(it))
                         return false;
 
                 return true;
@@ -488,30 +437,28 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
             if (std::strcmp(pJson->name, "diffuse_color") == 0)
             {
                 std::size_t index = 0;
-                return ParseColor(pJson, m_Diffuse, index, error);
+                return ParseColor(pJson, m_Diffuse, index);
             }
             else
             if (std::strcmp(pJson->name, "specular_color") == 0)
             {
                 std::size_t index = 0;
-                return ParseColor(pJson, m_Specular, index, error);
+                return ParseColor(pJson, m_Specular, index);
             }
             else
             if (std::strcmp(pJson->name, "emissive_color") == 0)
             {
                 std::size_t index = 0;
-                return ParseColor(pJson, m_Emissive, index, error);
+                return ParseColor(pJson, m_Emissive, index);
             }
             else
             if (std::strcmp(pJson->name, "ambient_color") == 0)
             {
                 std::size_t index = 0;
-                return ParseColor(pJson, m_Ambient, index, error);
+                return ParseColor(pJson, m_Ambient, index);
             }
 
-            error = "Parse material - unknown object or array";
             return false;
-        }
 
         case JSON_STRING:
             // read the value
@@ -527,8 +474,13 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
                     m_DiffuseTexture = pJson->string_value;
                     return true;
                 }
+                else
+                if (std::strcmp(pJson->name, "normal_map_texture") == 0)
+                {
+                    m_NormalMapTexture = pJson->string_value;
+                    return true;
+                }
 
-            error = "Parse material - unknown string value";
             return false;
 
         case JSON_INT:
@@ -588,7 +540,6 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse material - unknown int value";
             return false;
 
         case JSON_FLOAT:
@@ -648,7 +599,6 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse material - unknown float value";
             return false;
 
         case JSON_BOOL:
@@ -708,11 +658,184 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, std::string& error)
                     return true;
                 }
 
-            error = "Parse material - unknown bool value";
             return false;
     }
 
-    error = "Parse material - unknown data type";
+    return false;
+}
+//---------------------------------------------------------------------------
+// MHX2Reader::ILicense
+//---------------------------------------------------------------------------
+MHX2Reader::ILicense::ILicense() :
+    IItem()
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::ILicense::~ILicense()
+{}
+//---------------------------------------------------------------------------
+bool MHX2Reader::ILicense::Parse(json_value* pJson)
+{
+    // no source data?
+    if (!pJson)
+        return false;
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // search for name
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "license") == 0)
+                {
+                    // if no name, assume that it's the geometry class itself, so iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it))
+                            return false;
+
+                    return true;
+                }
+
+            return false;
+
+        case JSON_STRING:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "author") == 0)
+                {
+                    m_Author = pJson->string_value;
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "license") == 0)
+                {
+                    m_License = pJson->string_value;
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "homepage") == 0)
+                {
+                    m_Homepage = pJson->string_value;
+                    return true;
+                }
+
+            return false;
+    }
+
+    return false;
+}
+//---------------------------------------------------------------------------
+// MHX2Reader::IGeometry
+//---------------------------------------------------------------------------
+MHX2Reader::IGeometry::IGeometry() :
+    IItem(),
+    m_Scale(1.0f),
+    m_IsHuman(true),
+    m_IsSubdivided(false)
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::IGeometry::~IGeometry()
+{}
+//---------------------------------------------------------------------------
+bool MHX2Reader::IGeometry::Parse(json_value* pJson)
+{
+    // no source data?
+    if (!pJson)
+        return false;
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // search for name
+            if (!pJson->name)
+            {
+                // if no name, assume that it's the geometry class itself, so iterate through children
+                for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    if (!Parse(it))
+                        return false;
+
+                return true;
+            }
+            else
+            if (std::strcmp(pJson->name, "license") == 0)
+                return m_License.Parse(pJson);
+            else
+            if (std::strcmp(pJson->name, "offset") == 0)
+            {
+                std::size_t index = 0;
+                return ParseVector(pJson, m_Offset, index);
+            }
+            //else
+            //if (std::strcmp(pJson->name, "mesh") == 0)
+                //return m_Mesh.Parse(pJson);
+
+            return false;
+
+        case JSON_STRING:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "name") == 0)
+                {
+                    m_Name = pJson->string_value;
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "uuid") == 0)
+                {
+                    m_Uuid = pJson->string_value;
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "material") == 0)
+                {
+                    m_Material = pJson->string_value;
+                    return true;
+                }
+
+            return false;
+
+        case JSON_INT:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "scale") == 0)
+                {
+                    m_Scale = float(pJson->int_value);
+                    return true;
+                }
+
+            return false;
+
+        case JSON_FLOAT:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "scale") == 0)
+                {
+                    m_Scale = pJson->float_value;
+                    return true;
+                }
+
+            return false;
+
+        case JSON_BOOL:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "issubdivided") == 0)
+                {
+                    m_IsSubdivided = pJson->int_value;
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "human") == 0)
+                {
+                    m_IsHuman = pJson->int_value;
+                    return true;
+                }
+
+            return false;
+    }
+
     return false;
 }
 //---------------------------------------------------------------------------
@@ -735,6 +858,130 @@ MHX2Reader::IModel::~IModel()
     // iterate through geometries and delete them
     for (std::size_t i = 0; i < geometryCount; ++i)
         delete m_Geometries[i];
+}
+//---------------------------------------------------------------------------
+/*REM
+#include <Windows.h>
+#define INDENT(n) for (int i = 0; i < n; ++i) ::OutputDebugStringA("    ")
+void print(json_value* value, int indent = 0)
+{
+    INDENT(indent);
+    if (value->name) ::OutputDebugStringA((std::string(value->name) + "=").c_str());
+    switch (value->type)
+    {
+        case JSON_NULL:
+            ::OutputDebugStringA("null\n");
+            break;
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            ::OutputDebugStringA(value->type == JSON_OBJECT ? "{\n" : "[\n");
+            for (json_value* it = value->first_child; it; it = it->next_sibling)
+            {
+                print(it, indent + 1);
+            }
+            INDENT(indent);
+            ::OutputDebugStringA(value->type == JSON_OBJECT ? "}\n" : "]\n");
+            break;
+        case JSON_STRING:
+            ::OutputDebugStringA((std::string(value->string_value) + "\n").c_str());
+            break;
+        case JSON_INT:
+        {
+            std::ostringstream sstr;
+            sstr << value->int_value;
+            ::OutputDebugStringA((sstr.str() + "\n").c_str());
+            break;
+        }
+        case JSON_FLOAT:
+        {
+            std::ostringstream sstr;
+            sstr << value->float_value;
+            ::OutputDebugStringA((sstr.str() + "\n").c_str());
+            break;
+        }
+        case JSON_BOOL:
+            ::OutputDebugStringA(value->int_value ? "true\n" : "false\n");
+            break;
+    }
+}
+*/
+bool MHX2Reader::IModel::Parse(json_value* pJson)
+{
+    // no source data?
+    if (!pJson)
+        return false;
+
+    // Dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // search for name
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "skeleton") == 0)
+                {
+                    std::string error;
+
+                    if (!m_Skeleton.Parse(pJson))
+                        return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "materials") == 0)
+                {
+                    // material array, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    {
+                        std::unique_ptr<IMaterial> pMaterial(new IMaterial());
+
+                        if (!pMaterial->Parse(it))
+                            return false;
+
+                        m_Materials.push_back(pMaterial.get());
+                        pMaterial.release();
+                    }
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "geometries") == 0)
+                {
+                    // geometry array, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    {
+                        std::unique_ptr<IGeometry> pGeometry(new IGeometry());
+
+                        if (!pGeometry->Parse(it))
+                            return false;
+
+                        m_Geometries.push_back(pGeometry.get());
+                        pGeometry.release();
+                    }
+
+                    return true;
+                }
+
+            // read the generic children
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it))
+                    return false;
+
+            return true;
+
+        case JSON_STRING:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "mhx2_version") == 0)
+                {
+                    m_Version = pJson->string_value;
+                    return true;
+                }
+
+            return false;
+    }
+
+    return false;
 }
 //---------------------------------------------------------------------------
 // MHX2Reader
@@ -841,193 +1088,6 @@ bool MHX2Reader::Read(const std::string& data)
     // create the model
     m_pModel = new IModel();
 
-    std::string error;
-
-    return Parse(pJson, m_pModel, error);
-}
-//---------------------------------------------------------------------------
-/*REM
-#include <Windows.h>
-#include <sstream>
-#define INDENT(n) for (int i = 0; i < n; ++i) ::OutputDebugStringA("    ")
-void print(json_value* value, int indent = 0)
-{
-    INDENT(indent);
-    if (value->name) ::OutputDebugStringA((std::string(value->name) + "=").c_str());
-    switch (value->type)
-    {
-        case JSON_NULL:
-            ::OutputDebugStringA("null\n");
-            break;
-        case JSON_OBJECT:
-        case JSON_ARRAY:
-            ::OutputDebugStringA(value->type == JSON_OBJECT ? "{\n" : "[\n");
-            for (json_value* it = value->first_child; it; it = it->next_sibling)
-            {
-                print(it, indent + 1);
-            }
-            INDENT(indent);
-            ::OutputDebugStringA(value->type == JSON_OBJECT ? "}\n" : "]\n");
-            break;
-        case JSON_STRING:
-            ::OutputDebugStringA((std::string(value->string_value) + "\n").c_str());
-            break;
-        case JSON_INT:
-        {
-            std::ostringstream sstr;
-            sstr << value->int_value;
-            ::OutputDebugStringA((sstr.str() + "\n").c_str());
-            break;
-        }
-        case JSON_FLOAT:
-        {
-            std::ostringstream sstr;
-            sstr << value->float_value;
-            ::OutputDebugStringA((sstr.str() + "\n").c_str());
-            break;
-        }
-        case JSON_BOOL:
-            ::OutputDebugStringA(value->int_value ? "true\n" : "false\n");
-            break;
-    }
-}
-*/
-bool MHX2Reader::Parse(json_value* pJson, IModel* pModel, std::string& error)
-{
-    switch (pJson->type)
-    {
-        case JSON_OBJECT:
-        case JSON_ARRAY:
-        {
-            if (pJson->name)
-                if (std::strcmp(pJson->name, "skeleton") == 0)
-                {
-                    std::string error;
-
-                    if (!pModel->m_Skeleton.Parse(pJson, error))
-                        return false;
-
-                    return true;
-                }
-                else
-                if (std::strcmp(pJson->name, "materials") == 0)
-                {
-                    // material array, iterate through children
-                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    {
-                        std::unique_ptr<IMaterial> pMaterial(new IMaterial());
-
-                        if (!pMaterial->Parse(it, error))
-                            return false;
-
-                        pModel->m_Materials.push_back(pMaterial.get());
-                        pMaterial.release();
-                    }
-
-                    return true;
-                }
-
-            IEType itemType = IE_T_Unknown;
-
-            if (pJson->name)
-                itemType = NameToType(std::string(pJson->name, std::strlen(pJson->name)));
-
-            std::string test = "";
-
-            switch (itemType)
-            {
-                /*REM
-                case IE_T_Skeleton:
-                {
-                    std::unique_ptr<ISkeleton> pSkeleton(new ISkeleton());
-                    std::string error;
-
-                    if (!pSkeleton->Parse(pJson, error))
-                        return false;
-
-                    std::string test = "";
-                }
-                */
-
-                /*
-                case IE_T_Bones:
-                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                    {
-                        std::unique_ptr<IBone> pBone(new IBone());
-                        std::string error;
-
-                        if (!pBone->Parse(it, error))
-                            return false;
-
-                        std::string test = "";
-                    }
-
-                    return true;
-                */
-
-                default:
-                    break;
-            }
-
-            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
-                if (!Parse(it, pModel, error))
-                    return false;
-
-            return true;
-        }
-
-        case JSON_STRING:
-            // read the value
-            if (pJson->name)
-                if (std::strcmp(pJson->name, "mhx2_version") == 0)
-                {
-                    pModel->m_Version = pJson->string_value;
-                    return true;
-                }
-
-            error = "Parse model - unknown string value";
-            return false;
-    }
-
-    error = "Parse model - unknown data type";
-    return false;
-}
-//---------------------------------------------------------------------------
-MHX2Reader::IEType MHX2Reader::NameToType(const std::string& name) const
-{
-    if (name == "license")
-        return IE_T_License;
-    else
-    if (name == "skeleton")
-        return IE_T_Skeleton;
-    else
-    if (name == "bones")
-        return IE_T_Bones;
-    else
-    if (name == "matrix")
-        return IE_T_Matrix;
-    else
-    if (name == "materials")
-        return IE_T_Materials;
-    else
-    if (name == "geometries")
-        return IE_T_Geometries;
-    else
-    if (name == "mesh")
-        return IE_T_Mesh;
-    else
-    if (name == "seed_mesh")
-        return IE_T_SeedMesh;
-    else
-    if (name == "proxy_seed_mesh")
-        return IE_T_ProxySeedMesh;
-    else
-    if (name == "proxy")
-        return IE_T_Proxy;
-    else
-    if (name == "weights")
-        return IE_T_Weights;
-
-    return IE_T_Unknown;
+    return m_pModel->Parse(pJson);
 }
 //---------------------------------------------------------------------------

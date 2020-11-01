@@ -31,6 +31,7 @@
 // std
 #include <vector>
 #include <string>
+#include <sstream>
 
 // libraries
 #include "json.h"
@@ -54,6 +55,56 @@ class MHX2Reader
         typedef std::vector<Vector3F*>   IVertices;
 
         /**
+        * Logger
+        */
+        class ILogger
+        {
+            public:
+                ILogger();
+                virtual ~ILogger();
+
+                /**
+                * Clears the logger content
+                */
+                virtual void Clear();
+
+                /**
+                * Logs a simple message
+                *@param pJson - the json object containing the data
+                *@param message - message to log
+                */
+                virtual void Log(const std::string& message);
+
+                /**
+                * Logs a message with a value
+                *@param pJson - the json object containing the data
+                *@param message - message to log
+                */
+                template <class T>
+                void Log(const std::string& message, T value);
+
+                /**
+                * Logs a simple json message
+                *@param pJson - the json object containing the data
+                *@param message - message to log
+                */
+                virtual void Log(json_value* pJson, const std::string& message);
+
+                /**
+                * Logs a json message with a value
+                *@param pJson - the json object containing the data
+                *@param message - message to log
+                */
+                template <class T>
+                void Log(json_value* pJson, const std::string& message, T value);
+
+            private:
+                typedef std::vector<std::string> ILines;
+
+                ILines m_Lines;
+        };
+
+        /**
         * Item
         */
         struct IItem
@@ -66,18 +117,20 @@ class MHX2Reader
             *@param pJson - json object containing the data to parse
             *@param[out] color - color to populate
             *@param[in, out] index - vector index
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool ParseColor(json_value* pJson, ColorF& color, std::size_t& index) const;
+            virtual bool ParseColor(json_value* pJson, ColorF& color, std::size_t& index, ILogger& logger) const;
 
             /**
             * Parses the vector data from a json object
             *@param pJson - json object containing the data to parse
             *@param[out] vector - vector to populate
             *@param[in, out] index - vector index
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index) const;
+            virtual bool ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, ILogger& logger) const;
 
             /**
             * Parses the matrix data from a json object
@@ -85,9 +138,10 @@ class MHX2Reader
             *@param[out] matrix - matrix to populate
             *@param[in, out] x - matrix x index
             *@param[in, out] y - matrix y index
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y) const;
+            virtual bool ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, ILogger& logger) const;
         };
 
         /**
@@ -108,9 +162,10 @@ class MHX2Reader
             /**
             * Parses the bone data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IBone*> IBones;
@@ -131,9 +186,10 @@ class MHX2Reader
             /**
             * Parses the skeleton data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         /**
@@ -173,9 +229,10 @@ class MHX2Reader
             /**
             * Parses the material data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IMaterial*> IMaterials;
@@ -195,9 +252,10 @@ class MHX2Reader
             /**
             * Parses the license data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         /**
@@ -206,6 +264,17 @@ class MHX2Reader
         struct IFace : public IItem
         {
             IIntValues m_Values;
+
+            IFace();
+            virtual ~IFace();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IFace*> IFaces;
@@ -215,8 +284,20 @@ class MHX2Reader
         */
         struct IUVCoord : public IItem
         {
-            float m_X;
-            float m_Y;
+            float       m_X;
+            float       m_Y;
+            std::size_t m_Index;
+
+            IUVCoord();
+            virtual ~IUVCoord();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IUVCoord*> IUVCoords;
@@ -247,11 +328,22 @@ class MHX2Reader
         */
         struct IMesh : public IItem
         {
-            IVertices   m_Vertices; // NEED DEL
-            IFaces      m_Faces;    // NEED DEL
-            IUVCoords   m_UVCoords; // NEED DEL
-            IFaces      m_UVFaces;  // NEED DEL
-            IWeights    m_Weights;  // NEED DEL
+            IVertices   m_Vertices;
+            IFaces      m_Faces;
+            IUVCoords   m_UVCoords;
+            IFaces      m_UVFaces;
+            IWeights    m_Weights;
+
+            IMesh();
+            virtual ~IMesh();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         /**
@@ -293,9 +385,10 @@ class MHX2Reader
             /**
             * Parses the license data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IGeometry*> IGeometries;
@@ -316,9 +409,10 @@ class MHX2Reader
             /**
             * Parses the model data from a json object
             *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
             *@return true on success, otherwise false
             */
-            virtual bool Parse(json_value* pJson);
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         MHX2Reader();
@@ -360,4 +454,47 @@ class MHX2Reader
         };
 
         IModel* m_pModel;
+        ILogger m_Logger;
 };
+
+//---------------------------------------------------------------------------
+// MHX2Reader
+//---------------------------------------------------------------------------
+template <class T>
+void MHX2Reader::ILogger::Log(const std::string& message, T value)
+{
+    // log the message
+    std::ostringstream sstr;
+    sstr << message << " - " << value;
+
+    m_Lines.push_back(sstr.str());
+}
+//---------------------------------------------------------------------------
+template <class T>
+void MHX2Reader::ILogger::Log(json_value* pJson, const std::string& message, T value)
+{
+    std::ostringstream sstr;
+
+    // is json defined?
+    if (pJson)
+    {
+        // json contains a name
+        if (pJson->name)
+        {
+            // get the data key
+            const std::string key = pJson->name;
+
+            // log the message
+            if (!key.empty())
+                sstr << message << " - " << value << " - json - key - " << key << " - type - " << pJson->type;
+            else
+                sstr << message << " - " << value << " - json - type - " << pJson->type;
+        }
+    }
+    else
+        // log the message
+        sstr << message << " - " << value;
+
+    m_Lines.push_back(sstr.str());
+}
+//---------------------------------------------------------------------------

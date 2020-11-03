@@ -353,6 +353,17 @@ class MHX2Reader
         struct IFit : public IItem
         {
             IVertices m_Values;
+
+            IFit();
+            virtual ~IFit();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         typedef std::vector<IFit*> IFitting;
@@ -385,14 +396,26 @@ class MHX2Reader
         */
         struct IProxy : public IItem
         {
+            ILicense      m_License;
             std::string   m_Name;
             std::string   m_Type;
             std::string   m_Uuid;
             std::string   m_Basemesh;
             IStringValues m_Tags;
             IBoolValues   m_DeleteVerts;
-            IFitting      m_Fitting; // NEED DEL
-            void*         m_pVertexBoneWeights; // NEED DEL
+            IFitting      m_Fitting;
+            void*         m_pVertexBoneWeights;
+
+            IProxy();
+            virtual ~IProxy();
+
+            /**
+            * Parses the license data from a json object
+            *@param pJson - json object containing the data to parse
+            *@param[in, out] logger - logger
+            *@return true on success, otherwise false
+            */
+            virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
         /**

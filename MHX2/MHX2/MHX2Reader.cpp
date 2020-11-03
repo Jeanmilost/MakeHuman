@@ -29,7 +29,7 @@
 #include "MHX2Reader.h"
 
  //---------------------------------------------------------------------------
- // MHX2Reader::IItem
+ // MHX2Reader::ILogger
  //---------------------------------------------------------------------------
 MHX2Reader::ILogger::ILogger()
 {}
@@ -1077,9 +1077,60 @@ bool MHX2Reader::IWeightGroup::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
+// MHX2Reader::IFit
+//---------------------------------------------------------------------------
+MHX2Reader::IFit::IFit() :
+    IItem()
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::IFit::~IFit()
+{
+    const std::size_t count = m_Values.size();
+
+    // iterate through fits and delete them
+    for (std::size_t i = 0; i < count; ++i)
+        delete m_Values[i];
+}
+//---------------------------------------------------------------------------
+bool MHX2Reader::IFit::Parse(json_value* pJson, ILogger& logger)
+{
+    // no source data?
+    if (!pJson)
+    {
+        logger.Log("Parse fit - json data source is missing");
+        return false;
+    }
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // read the generic children
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+            {
+                std::unique_ptr<Vector3F> pVertex(new Vector3F());
+                std::size_t index = 0;
+
+                // read the vertex
+                if (!ParseVector(it, *pVertex.get(), index, logger))
+                    return false;
+
+                m_Values.push_back(pVertex.get());
+                pVertex.release();
+            }
+
+            return true;
+    }
+
+    logger.Log(pJson, "Parse proxy - unknown type");
+    return false;
+}
+//---------------------------------------------------------------------------
 // MHX2Reader::IMesh
 //---------------------------------------------------------------------------
-MHX2Reader::IMesh::IMesh()
+MHX2Reader::IMesh::IMesh() :
+    IItem()
 {}
 //---------------------------------------------------------------------------
 MHX2Reader::IMesh::~IMesh()
@@ -1134,6 +1185,26 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                 if (std::strcmp(pJson->name, "mesh") == 0)
                 {
                     // mesh class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, logger))
+                            return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "seed_mesh") == 0)
+                {
+                    // seed mesh class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, logger))
+                            return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "proxy_seed_mesh") == 0)
+                {
+                    // proxy seed mesh class, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                         if (!Parse(it, logger))
                             return false;
@@ -1235,6 +1306,165 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
+// MHX2Reader::IProxy
+//---------------------------------------------------------------------------
+MHX2Reader::IProxy::IProxy() :
+    IItem(),
+    m_pVertexBoneWeights(nullptr)
+{}
+//---------------------------------------------------------------------------
+MHX2Reader::IProxy::~IProxy()
+{
+    const std::size_t fitCount = m_Fitting.size();
+
+    // iterate through fits and delete them
+    for (std::size_t i = 0; i < fitCount; ++i)
+        delete m_Fitting[i];
+
+    if (m_pVertexBoneWeights)
+        delete m_pVertexBoneWeights;
+}
+//---------------------------------------------------------------------------
+bool MHX2Reader::IProxy::Parse(json_value* pJson, ILogger& logger)
+{
+    // no source data?
+    if (!pJson)
+    {
+        logger.Log("Parse proxy - json data source is missing");
+        return false;
+    }
+
+    // dispatch json type
+    switch (pJson->type)
+    {
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+            // search for name
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "proxy") == 0)
+                {
+                    // mesh class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, logger))
+                            return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "license") == 0)
+                    return m_License.Parse(pJson, logger);
+                else
+                if (std::strcmp(pJson->name, "tags") == 0)
+                {
+                    // mesh class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, logger))
+                            return false;
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "fitting") == 0)
+                {
+                    // iterate through fits and read each of them
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                    {
+                        std::unique_ptr<IFit> pFit(new IFit());
+
+                        // read the fit
+                        if (!pFit->Parse(it, logger))
+                            return false;
+
+                        m_Fitting.push_back(pFit.get());
+                        pFit.release();
+                    }
+
+                    return true;
+                }
+                else
+                if (std::strcmp(pJson->name, "delete_verts") == 0)
+                {
+                    // mesh class, iterate through children
+                    for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                        if (!Parse(it, logger))
+                            return false;
+
+                    return true;
+                }
+
+            // read the generic children
+            for (json_value* it = pJson->first_child; it; it = it->next_sibling)
+                if (!Parse(it, logger))
+                    return false;
+
+            logger.Log(pJson, "Parse proxy - unknown value");
+            return true;
+
+        case JSON_STRING:
+            // read the value
+            if (!pJson->name)
+            {
+                // no name, assume it's a tag
+                m_Tags.push_back(pJson->string_value);
+                return true;
+            }
+            else
+            if (std::strcmp(pJson->name, "name") == 0)
+            {
+                m_Name = pJson->string_value;
+                return true;
+            }
+            else
+            if (std::strcmp(pJson->name, "type") == 0)
+            {
+                m_Type = pJson->string_value;
+                return true;
+            }
+            else
+            if (std::strcmp(pJson->name, "uuid") == 0)
+            {
+                m_Uuid = pJson->string_value;
+                return true;
+            }
+            else
+            if (std::strcmp(pJson->name, "basemesh") == 0)
+            {
+                m_Basemesh = pJson->string_value;
+                return true;
+            }
+
+            logger.Log(pJson, "Parse proxy - unknown value");
+            return true;
+
+        case JSON_BOOL:
+            // read the value
+            if (!pJson->name)
+            {
+                // no name, assume it's a delete vertex value
+                m_DeleteVerts.push_back(pJson->int_value);
+                return true;
+            }
+
+            logger.Log(pJson, "Parse proxy - unknown value");
+            return true;
+
+        case JSON_NULL:
+            // read the value
+            if (pJson->name)
+                if (std::strcmp(pJson->name, "vertex_bone_weights") == 0)
+                {
+                    m_pVertexBoneWeights = nullptr;
+                    return true;
+                }
+
+            logger.Log(pJson, "Parse proxy - unknown value");
+            return true;
+    }
+
+    logger.Log(pJson, "Parse proxy - unknown type");
+    return false;
+}
+//---------------------------------------------------------------------------
 // MHX2Reader::IGeometry
 //---------------------------------------------------------------------------
 MHX2Reader::IGeometry::IGeometry() :
@@ -1283,6 +1513,15 @@ bool MHX2Reader::IGeometry::Parse(json_value* pJson, ILogger& logger)
             else
             if (std::strcmp(pJson->name, "mesh") == 0)
                 return m_Mesh.Parse(pJson, logger);
+            else
+            if (std::strcmp(pJson->name, "seed_mesh") == 0)
+                return m_SeedMesh.Parse(pJson, logger);
+            else
+            if (std::strcmp(pJson->name, "proxy_seed_mesh") == 0)
+                return m_ProxySeedMesh.Parse(pJson, logger);
+            else
+            if (std::strcmp(pJson->name, "proxy") == 0)
+                return m_Proxy.Parse(pJson, logger);
 
             logger.Log(pJson, "Parse geometry - unknown value");
             return true;
@@ -1379,51 +1618,6 @@ MHX2Reader::IModel::~IModel()
         delete m_Geometries[i];
 }
 //---------------------------------------------------------------------------
-/*REM
-#include <Windows.h>
-#define INDENT(n) for (int i = 0; i < n; ++i) ::OutputDebugStringA("    ")
-void print(json_value* value, int indent = 0)
-{
-    INDENT(indent);
-    if (value->name) ::OutputDebugStringA((std::string(value->name) + "=").c_str());
-    switch (value->type)
-    {
-        case JSON_NULL:
-            ::OutputDebugStringA("null\n");
-            break;
-        case JSON_OBJECT:
-        case JSON_ARRAY:
-            ::OutputDebugStringA(value->type == JSON_OBJECT ? "{\n" : "[\n");
-            for (json_value* it = value->first_child; it; it = it->next_sibling)
-            {
-                print(it, indent + 1);
-            }
-            INDENT(indent);
-            ::OutputDebugStringA(value->type == JSON_OBJECT ? "}\n" : "]\n");
-            break;
-        case JSON_STRING:
-            ::OutputDebugStringA((std::string(value->string_value) + "\n").c_str());
-            break;
-        case JSON_INT:
-        {
-            std::ostringstream sstr;
-            sstr << value->int_value;
-            ::OutputDebugStringA((sstr.str() + "\n").c_str());
-            break;
-        }
-        case JSON_FLOAT:
-        {
-            std::ostringstream sstr;
-            sstr << value->float_value;
-            ::OutputDebugStringA((sstr.str() + "\n").c_str());
-            break;
-        }
-        case JSON_BOOL:
-            ::OutputDebugStringA(value->int_value ? "true\n" : "false\n");
-            break;
-    }
-}
-*/
 bool MHX2Reader::IModel::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?

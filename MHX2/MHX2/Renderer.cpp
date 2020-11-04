@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> Vector3 -------------------------------------------------------------*
+ * ==> Renderer ------------------------------------------------------------*
  ****************************************************************************
- * Description : 3D vector                                                  *
+ * Description : Generic renderer                                           *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -26,4 +26,56 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "Vector3.h"
+#include "Renderer.h"
+
+ //---------------------------------------------------------------------------
+ // Renderer
+ //---------------------------------------------------------------------------
+Renderer::Renderer()
+{}
+//---------------------------------------------------------------------------
+Renderer::~Renderer()
+{}
+//---------------------------------------------------------------------------
+bool Renderer::SetPixelFormat(HDC hDC) const
+{
+    // no device context?
+    if (!hDC)
+        return false;
+
+    ::PIXELFORMATDESCRIPTOR pfd =
+    {
+        sizeof(::PIXELFORMATDESCRIPTOR),
+        1,
+        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+        PFD_TYPE_RGBA,
+        24,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        32,
+        0,
+        0,
+        PFD_MAIN_PLANE,
+        0,
+        0,
+        0,
+    };
+
+    // get best available pixel format
+    const int pixelFormat = ::ChoosePixelFormat(hDC, &pfd);
+
+    // set pixel format to use
+    return ::SetPixelFormat(hDC, pixelFormat, &pfd);
+}
+//---------------------------------------------------------------------------

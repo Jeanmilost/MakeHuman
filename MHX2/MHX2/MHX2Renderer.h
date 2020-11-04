@@ -4,7 +4,7 @@
  * Description : MakeHuman .mhx2 model renderer                             *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
- * MIT License - Mhx2 reader                                                *
+ * MIT License - mhx2 reader                                                *
  *                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a  *
  * copy of this software and associated documentation files (the            *

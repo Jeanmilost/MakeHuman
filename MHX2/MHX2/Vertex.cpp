@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> MHX2Renderer --------------------------------------------------------*
+ * ==> Vertex --------------------------------------------------------------*
  ****************************************************************************
- * Description : MakeHuman .mhx2 model renderer                             *
+ * Description : Vertex descriptor                                          *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -26,14 +26,75 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "MHX2Renderer.h"
+#include "Vertex.h"
 
- //---------------------------------------------------------------------------
-// MHX2Renderer
- //---------------------------------------------------------------------------
-MHX2Renderer::MHX2Renderer()
+ // std
+#include <memory>
+
+//---------------------------------------------------------------------------
+// Vertex
+//---------------------------------------------------------------------------
+Vertex::Vertex() :
+    m_Stride(0),
+    m_Type(IE_VT_Unknown),
+    m_Format(IE_VF_None),
+    m_CoordType(IE_VC_XYZ)
 {}
 //---------------------------------------------------------------------------
-MHX2Renderer::~MHX2Renderer()
+Vertex::~Vertex()
 {}
+//---------------------------------------------------------------------------
+Vertex* Vertex::Clone() const
+{
+    // clone vertex
+    std::unique_ptr<Vertex> pClone(new Vertex());
+    pClone->m_Name      = m_Name;
+    pClone->m_Stride    = m_Stride;
+    pClone->m_Type      = m_Type;
+    pClone->m_Format    = m_Format;
+    pClone->m_CoordType = m_CoordType;
+    return pClone.release();
+}
+//---------------------------------------------------------------------------
+std::size_t Vertex::CalculateStride() const
+{
+    std::size_t stride;
+
+    // search for coordinate type
+    switch (m_CoordType)
+    {
+        case IE_VC_XY:
+            stride = 2;
+            break;
+
+        case IE_VC_XYZ:
+            stride = 3;
+            break;
+
+        default:
+            throw new std::exception("Unknown coordinate type");
+    }
+
+    // do include normals?
+    if (m_Format & Vertex::IE_VF_Normals)
+        stride += 3;
+
+    // do include texture coordinates?
+    if (m_Format & Vertex::IE_VF_TexCoords)
+        stride += 2;
+
+    // do include vertex color?
+    if (m_Format & Vertex::IE_VF_Colors)
+        stride += 4;
+
+    return stride;
+}
+//---------------------------------------------------------------------------
+bool Vertex::CompareFormat(const Vertex& other) const
+{
+    return (m_Stride    == other.m_Stride &&
+            m_Type      == other.m_Type &&
+            m_Format    == other.m_Format &&
+            m_CoordType == other.m_CoordType);
+}
 //---------------------------------------------------------------------------

@@ -4,7 +4,7 @@
  * Description : MakeHuman .mhx2 file reader demo                           *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
- * MIT License - Mhx2 reader                                                *
+ * MIT License - mhx2 reader                                                *
  *                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a  *
  * copy of this software and associated documentation files (the            *
@@ -83,9 +83,9 @@ void EnableOpenGL(HWND hwnd, HDC* hDC, HGLRC* hRC)
     pfd.cDepthBits = 16;
     pfd.iLayerType = PFD_MAIN_PLANE;
 
-    iFormat = ChoosePixelFormat(*hDC, &pfd);
+    iFormat = ::ChoosePixelFormat(*hDC, &pfd);
 
-    SetPixelFormat(*hDC, iFormat, &pfd);
+    ::SetPixelFormat(*hDC, iFormat, &pfd);
 
     // create and enable the render context (RC)
     *hRC = wglCreateContext(*hDC);
@@ -97,7 +97,7 @@ void DisableOpenGL(HWND hwnd, HDC hDC, HGLRC hRC)
 {
     wglMakeCurrent(NULL, NULL);
     wglDeleteContext(hRC);
-    ReleaseDC(hwnd, hDC);
+    ::ReleaseDC(hwnd, hDC);
 }
 //------------------------------------------------------------------------------
 int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
@@ -186,7 +186,7 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
             glPopMatrix();
 
-            SwapBuffers(hDC);
+            ::SwapBuffers(hDC);
 
             theta += 1.0f;
             Sleep(1);

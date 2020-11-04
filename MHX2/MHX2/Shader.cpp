@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> MHX2Renderer --------------------------------------------------------*
+ * ==> Shader --------------------------------------------------------------*
  ****************************************************************************
- * Description : MakeHuman .mhx2 model renderer                             *
+ * Description : Basic shader language class                                *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -26,14 +26,56 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "MHX2Renderer.h"
+#include "Shader.h"
 
  //---------------------------------------------------------------------------
-// MHX2Renderer
+ // Shader
  //---------------------------------------------------------------------------
-MHX2Renderer::MHX2Renderer()
+Shader::Shader()
+{
+    PopulateAttributeDict();
+}
+//---------------------------------------------------------------------------
+Shader::~Shader()
 {}
 //---------------------------------------------------------------------------
-MHX2Renderer::~MHX2Renderer()
-{}
+std::string Shader::GetAttributeName(IEAttribute attribute) const
+{
+    // search for attribute to get name
+    IAttributeDictionary::const_iterator it = m_AttributeDictionary.find(attribute);
+
+    // found it?
+    if (it == m_AttributeDictionary.end())
+        return "";
+
+    return it->second;
+}
+//---------------------------------------------------------------------------
+void Shader::SetAttributeName(IEAttribute  attribute,
+                                 const std::string& name)
+{
+    // is name empty?
+    if (!name.length())
+        return;
+
+    // change attribute name
+    m_AttributeDictionary[attribute] = name;
+}
+//---------------------------------------------------------------------------
+void Shader::PopulateAttributeDict()
+{
+    m_AttributeDictionary[IE_SA_Position]            = "vPosition";
+    m_AttributeDictionary[IE_SA_Normal]              = "vNormal";
+    m_AttributeDictionary[IE_SA_Texture]             = "vTexCoord";
+    m_AttributeDictionary[IE_SA_Color]               = "vColor";
+    m_AttributeDictionary[IE_SA_PerspectiveMatrix]   = "uPerspective";
+    m_AttributeDictionary[IE_SA_ProjectionMatrix]    = "uProjection";
+    m_AttributeDictionary[IE_SA_ViewMatrix]          = "uViewMatrix";
+    m_AttributeDictionary[IE_SA_CameraMatrix]        = "uCamera";
+    m_AttributeDictionary[IE_SA_ModelMatrix]         = "uModel";
+    m_AttributeDictionary[IE_SA_Interpolation]       = "fInterpolation";
+    m_AttributeDictionary[IE_SA_InterpolationPos]    = "viPosition";
+    m_AttributeDictionary[IE_SA_InterpolationNormal] = "viNormal";
+    m_AttributeDictionary[IE_SA_ColorMap]            = "sColorMap";
+}
 //---------------------------------------------------------------------------

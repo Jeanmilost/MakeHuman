@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> Vector3 -------------------------------------------------------------*
+ * ==> Texture -------------------------------------------------------------*
  ****************************************************************************
- * Description : 3D vector                                                  *
+ * Description : Texture descriptor                                         *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -26,4 +26,66 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "Vector3.h"
+#include "Texture.h"
+
+ // std
+#include <string>
+
+//---------------------------------------------------------------------------
+// Texture
+//---------------------------------------------------------------------------
+Texture::Texture() :
+    m_Format(IE_FT_24bit),
+    m_Target(IE_TT_Texture_2D),
+    m_WrapMode(IE_WM_Repeat),
+    m_MinFilter(IE_MI_Linear),
+    m_MagFilter(IE_MA_Linear),
+    m_HashCode(0),
+    m_Width(0),
+    m_Height(0)
+{}
+//---------------------------------------------------------------------------
+Texture::~Texture()
+{}
+//---------------------------------------------------------------------------
+void Texture::Clear()
+{
+    m_Format    = IE_FT_24bit;
+    m_Target    = IE_TT_Texture_2D;
+    m_WrapMode  = IE_WM_Repeat;
+    m_MinFilter = IE_MI_Linear;
+    m_MagFilter = IE_MA_Linear;
+    m_Width     = 0;
+    m_Height    = 0;
+}
+//---------------------------------------------------------------------------
+// ModelTexture
+//---------------------------------------------------------------------------
+ModelTexture::ModelTexture() :
+    m_pTexture(NULL),
+    m_Enabled(false)
+{}
+//---------------------------------------------------------------------------
+ModelTexture::~ModelTexture()
+{}
+//---------------------------------------------------------------------------
+void ModelTexture::Clear()
+{
+    m_Name.clear();
+
+    if (m_pTexture)
+        m_pTexture->Clear();
+
+    m_Enabled = false;
+}
+//---------------------------------------------------------------------------
+void ModelTexture::Select(const Shader* pShader) const
+{
+    // disabled?
+    if (!m_Enabled)
+        return;
+
+    if (m_pTexture)
+        m_pTexture->Select(pShader);
+}
+//---------------------------------------------------------------------------

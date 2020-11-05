@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> Shader --------------------------------------------------------------*
+ * ==> Shader_OpenGL -------------------------------------------------------*
  ****************************************************************************
- * Description : Basic shader language class                                *
+ * Description : Shader language implemented for OpenGL                     *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -28,68 +28,43 @@
 
 #pragma once
 
-// std
-#include <map>
+ // std
 #include <string>
 
+// classes
+#include "Shader.h"
+
+// openGL
+#define GLEW_STATIC
+#include <GL/glew.h>
+
 /**
-* Basic shader language class
+* OpenGL shader language
 *@author Jean-Milost Reymond
 */
-class Shader
+class Shader_OpenGL : public Shader
 {
     public:
         /**
-        * Shader type enumeration
+        * Called when a generic attribute should be associated with a named variable
+        *@param programID - shader program identifier
+        *@param type - shader type
         */
-        enum IEType
-        {
-            IE_ST_Vertex,
-            IE_ST_Fragment
-        };
+        typedef void (*ITfOnBindAttribute)(std::uintptr_t programID, IEType type);
 
-        /**
-        * Shader attributes
-        */
-        enum IEAttribute
-        {
-            IE_SA_Vertices,
-            IE_SA_Normal,
-            IE_SA_Texture,
-            IE_SA_Color,
-            IE_SA_ProjectionMatrix,
-            IE_SA_ViewMatrix,
-            IE_SA_ModelMatrix,
-            IE_SA_TextureSampler
-        };
-
-        Shader();
-        virtual ~Shader();
-
-        /**
-        * Gets attribute name
-        *@param attribute - attribute to get name
-        *@return attribute name
-        */
-        virtual std::string GetAttributeName(IEAttribute attribute) const;
-
-        /**
-        * Sets attribute name
-        *@param attribute - attribute to set name
-        *@param name - new attribute name
-        */
-        virtual void SetAttributeName(IEAttribute  attribute, const std::string& name);
+        Shader_OpenGL();
+        virtual ~Shader_OpenGL();
 
         /**
         * Creates the program
         */
-        virtual void CreateProgram() = 0;
+        virtual void CreateProgram();
 
         /**
         * Gets shader program identifier
         *@return shader program identifier
         */
-        virtual std::uintptr_t GetProgramID() const = 0;
+        virtual std::uintptr_t GetProgramID() const;
 
         /**
         * Attaches shader to program from file
@@ -97,7 +72,7 @@ class Shader
         *@param type - shader type
         *@return compiled shader identifier
         */
-        virtual std::uintptr_t AttachFile(const std::string& fileName, IEType type) = 0;
+        virtual std::uintptr_t AttachFile(const std::string& fileName, IEType type);
 
         /**
         * Attaches shader to program
@@ -105,28 +80,61 @@ class Shader
         *@param type - shader type
         *@return compiled shader identifier
         */
-        virtual std::uintptr_t Attach(const std::string& source, IEType type) = 0;
+        virtual std::uintptr_t Attach(const std::string& source, IEType type);
 
         /**
         * Links all attached shader and keep program ready to run
         *@param use - if true, program will be used immediately (in case link succeeded)
         *@return true on success, otherwise false
         */
-        virtual bool Link(bool use) const = 0;
+        virtual bool Link(bool use) const;
 
         /**
         * Uses the program
         *@param use - if true, program will be used, released otherwise
         */
-        virtual void Use(bool use) const = 0;
-
-    private:
-        typedef std::map<IEAttribute, std::string> IAttributeDictionary;
-
-        IAttributeDictionary m_AttributeDictionary;
+        virtual void Use(bool use) const;
 
         /**
-        * Populates default attribute dictionary
+        * Converts shader type to OpenGL shader type
+        *@param type - shader type to convert
+        *@return converted OpenGL shader type
         */
-        void PopulateAttributeDict();
+        static GLenum ShaderTypeToOpenGLShaderType(IEType type);
+
+        /**
+        * Converts OpenGL shader type to shader type
+        *@param type - OpenGL shader type to convert
+        *@return converted shader type
+        */
+        static IEType OpenGLTypeToShaderType(GLenum type);
+
+        /**
+        * Sets OnBindAttribute callback
+        *@param fHandler - function handler
+        */
+        virtual void Set_OnBindAttribute(ITfOnBindAttribute fHandler);
+
+    protected:
+        /**
+        * Compiles shader from file
+        *@param shaderFile - shader file to compile
+        *@param type - shader type
+        *@return compiled shader identifier
+        */
+        virtual GLuint CompileFile(const std::string& shaderFile, GLenum type) const;
+
+        /**
+        * Compiles shader
+        *@param source - shader source code
+        *@param type - shader type
+        *@return compiled shader identifier
+        */
+        virtual GLuint Compile(const std::string& source, GLenum type) const;
+
+    private:
+        GLuint             m_ProgramID;
+        GLuint             m_VertexID;
+        GLuint             m_FragmentID;
+        ITfOnBindAttribute m_fOnBindAttribute;
 };

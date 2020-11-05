@@ -47,7 +47,6 @@
 
 /**
 * Generic renderer for 3D engine
-*@note This class is cross-platform
 *@author Jean-Milost Reymond
 */
 class Renderer
@@ -81,11 +80,19 @@ class Renderer
         virtual bool SetPixelFormat(HDC hDC) const;
 
         /**
-        * Creates a viewport
+        * Creates OpenGL viewport
         *@param width - viewport width
         *@param height - viewport height
+        *@param zNear - viewport near clipping
+        *@param zFar - viewport far clipping
+        *@param[out] matrix - the projection matrix matching with viewport
         */
-        virtual void CreateViewport(int width, int height) const = 0;
+        virtual void CreateViewport(float             w,
+                                    float             h,
+                                    float             zNear,
+                                    float             zFar,
+                                    const Shader*     pShader,
+                                          Matrix4x4F& matrix) const = 0;
 
         /**
         * Begins a scene

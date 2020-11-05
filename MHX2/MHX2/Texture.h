@@ -98,7 +98,6 @@ class Texture
         IEWrapMode  m_WrapMode;
         IEMinFilter m_MinFilter;
         IEMagFilter m_MagFilter;
-        unsigned    m_HashCode;
         int         m_Width;
         int         m_Height;
 
@@ -137,14 +136,12 @@ class Texture
 
 /**
 * Texture list
-*@note This class is cross-platform
 *@author Jean-Milost Reymond
 */
 typedef std::vector<Texture*> Textures;
 
 /**
 * Texture for 3D models
-*@note This class is cross-platform
 *@author Jean-Milost Reymond
 */
 class ModelTexture
@@ -171,7 +168,6 @@ class ModelTexture
 
 /**
 * Model texture list
-*@note This class is cross-platform
 *@author Jean-Milost Reymond
 */
 typedef std::vector<ModelTexture*> ModelTextures;

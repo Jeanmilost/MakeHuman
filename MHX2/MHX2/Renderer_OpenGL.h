@@ -41,9 +41,6 @@
 
 /**
 * Renderer based on the OpenGL library
-*@note This class is cross-platform
-*@note USE_OPENGL_DIRECT_MODE must be globally defined to use the OpenGL direct
-*      mode instead of shader. BE CAREFUL, OpenGL direct mode is deprecated
 *@author Jean-Milost Reymond
 */
 class Renderer_OpenGL : public Renderer
@@ -69,8 +66,16 @@ class Renderer_OpenGL : public Renderer
         * Creates OpenGL viewport
         *@param width - viewport width
         *@param height - viewport height
+        *@param zNear - viewport near clipping
+        *@param zFar - viewport far clipping
+        *@param[out] matrix - the projection matrix matching with viewport
         */
-        virtual void CreateViewport(int width, int height) const;
+        virtual void CreateViewport(float             w,
+                                    float             h,
+                                    float             zNear,
+                                    float             zFar,
+                                    const Shader*     pShader,
+                                          Matrix4x4F& matrix) const;
 
         /**
         * Begins a scene

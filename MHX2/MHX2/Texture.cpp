@@ -40,7 +40,6 @@ Texture::Texture() :
     m_WrapMode(IE_WM_Repeat),
     m_MinFilter(IE_MI_Linear),
     m_MagFilter(IE_MA_Linear),
-    m_HashCode(0),
     m_Width(0),
     m_Height(0)
 {}

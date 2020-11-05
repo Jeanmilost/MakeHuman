@@ -29,8 +29,8 @@
 #include "Renderer_OpenGL.h"
 
 // classes
-//#include "Texture_OpenGL.h"
-//#include "Shader_OpenGL.h"
+#include "Texture_OpenGL.h"
+#include "Shader_OpenGL.h"
 
 //---------------------------------------------------------------------------
 // Renderer_OpenGL
@@ -96,22 +96,38 @@ void Renderer_OpenGL::DisableOpenGL(HWND hWnd)
     }
 }
 //---------------------------------------------------------------------------
-void Renderer_OpenGL::CreateViewport(int width, int height) const
+void Renderer_OpenGL::CreateViewport(float             w,
+                                     float             h,
+                                     float             zNear,
+                                     float             zFar,
+                                     const Shader*     pShader,
+                                           Matrix4x4F& matrix) const
 {
-    // enable OpenGL render context
-    if (!SelectContext())
+    if (!pShader)
         return;
 
-    // invalid width?
-    if (!width)
-        width = 1;
+    pShader->Use(true);
 
-    // invalid height?
-    if (!height)
-        height = 1;
+    // prevent the width to reach 0
+    if (!w)
+        w = 0.1f;
 
-    // set viewport
-    glViewport(0, 0, width, height);
+    // prevent the height to reach 0
+    if (!h)
+        h = 0.1f;
+
+    // calculate matrix items
+    const float fov    = 45.0f;
+    const float aspect = w / h;
+
+    // create the OpenGL viewport
+    glViewport(0, 0, w, h);
+
+    // create the projection matrix
+    matrix = GetPerspective(fov, aspect, zNear, zFar);
+
+    // connect projection matrix to shader
+    SetProjectionMatrix(pShader, matrix);
 }
 //---------------------------------------------------------------------------
 void Renderer_OpenGL::BeginScene(const ColorF& color, IESceneFlags flags) const
@@ -163,12 +179,12 @@ bool Renderer_OpenGL::SelectContext() const
 //---------------------------------------------------------------------------
 Texture* Renderer_OpenGL::GenerateTexture() const
 {
-    return nullptr;//FIXME new Texture_OpenGL();
+    return new Texture_OpenGL();
 }
 //---------------------------------------------------------------------------
 Shader* Renderer_OpenGL::GenerateShader() const
 {
-    return nullptr;//FIXME new Shader_OpenGL();
+    return new Shader_OpenGL();
 }
 //--------------------------------------------------------------------------------------------------
 void Renderer_OpenGL::ConnectProjectionMatrixToShader(const Shader*     pShader,
@@ -181,7 +197,7 @@ void Renderer_OpenGL::ConnectProjectionMatrixToShader(const Shader*     pShader,
     pShader->Use(true);
 
     // get perspective (or projection) matrix slot from shader
-    const GLint uniform = GetUniform(pShader, Shader::IE_SA_PerspectiveMatrix);
+    const GLint uniform = GetUniform(pShader, Shader::IE_SA_ProjectionMatrix);
 
     // found it?
     if (uniform == -1)
@@ -203,14 +219,14 @@ void Renderer_OpenGL::ConnectViewMatrixToShader(const Shader*     pShader,
     // bind shader program
     pShader->Use(true);
 
-    // get view (or camera) matrix slot from shader
-    const GLint uniform = GetUniform(pShader, Shader::IE_SA_CameraMatrix);
+    // get view matrix slot from shader
+    const GLint uniform = GetUniform(pShader, Shader::IE_SA_ViewMatrix);
 
     // found it?
     if (uniform == -1)
-        throw new std::exception("Program uniform not found - camera");
+        throw new std::exception("Program uniform not found - view");
 
-    // connect view (or camera) matrix to shader
+    // connect view matrix to shader
     glUniformMatrix4fv(uniform, 1, GL_FALSE, viewMatrix.GetPtr());
 
     // unbind shader program
@@ -264,7 +280,7 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
         glUniformMatrix4fv(uniform, 1, GL_FALSE, pModelMatrix->GetPtr());
 
         // get shader position attribute
-        GLint posAttrib = GetAttribute(pShader, Shader::IE_SA_Position);
+        GLint posAttrib = GetAttribute(pShader, Shader::IE_SA_Vertices);
 
         // found it?
         if (posAttrib == -1)
@@ -423,7 +439,7 @@ void Renderer_OpenGL::SelectTexture(const Shader*        pShader,
                                     const std::string&   modelName) const
 {
     // get color map slot from shader
-    GLint uniform = GetUniform(pShader, Shader::IE_SA_ColorMap);
+    GLint uniform = GetUniform(pShader, Shader::IE_SA_TextureSampler);
 
     // found it?
     if (uniform == -1)

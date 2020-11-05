@@ -1,8 +1,7 @@
 /****************************************************************************
- * ==> Shader --------------------------------------------------------------*
+ * ==> Texture_OpenGL ------------------------------------------------------*
  ****************************************************************************
- * Description : Basic shader language class                                *
- * Developer   : Jean-Milost Reymond                                        *
+ * Description : Provides a texture class based on OpenGL                   *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
  *                                                                          *
@@ -26,50 +25,102 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "Shader.h"
+#pragma once
 
- //---------------------------------------------------------------------------
- // Shader
- //---------------------------------------------------------------------------
-Shader::Shader()
+// classes
+#include "Texture.h"
+
+// OpenGL
+#define GLEW_STATIC
+#include <GL/glew.h>
+#include <gl/gl.h>
+
+/**
+* Texture for 3D models ready to use in OpenGL
+*@author Jean-Milost Reymond
+*/
+class Texture_OpenGL : public Texture
 {
-    PopulateAttributeDict();
+    public:
+        Texture_OpenGL();
+        virtual ~Texture_OpenGL();
+
+        /**
+        * Clears the texture
+        */
+        virtual inline void Clear();
+
+        /**
+        * Creates the texture
+        *@param pPixels - texture pixels array
+        *@return true on success, otherwise false
+        */
+        virtual bool Create(void* pPixels);
+
+        /**
+        * Deletes the texture
+        */
+        virtual void Delete();
+
+        /**
+        * Selects the texture
+        *@param pShader - shader
+        */
+        virtual void Select(const Shader* pShader) const;
+
+    protected:
+        /**
+        * Gets texture target
+        *@return target
+        */
+        virtual GLuint GetTarget() const;
+
+        /**
+        * Gets texture format
+        *@return format
+        */
+        virtual GLuint GetFormat() const;
+
+        /**
+        * Gets texture wrap mode
+        *@return wrap mode
+        */
+        virtual GLuint GetWrapMode() const;
+
+        /**
+        * Gets texture minify filter
+        *@return minify filter
+        */
+        virtual GLuint GetMinFilter() const;
+
+        /**
+        * Gets texture magnify filter
+        *@return magnify filter
+        */
+        virtual GLuint GetMagFilter() const;
+
+        /**
+        * Gets the texture identifier
+        *@return Texture identifier
+        */
+        virtual inline std::size_t GetID() const;
+
+    private:
+        GLuint m_Index;
+};
+
+//---------------------------------------------------------------------------
+// Texture_OpenGL
+//---------------------------------------------------------------------------
+void Texture_OpenGL::Clear()
+{
+    Texture::Clear();
+
+    Delete();
 }
 //---------------------------------------------------------------------------
-Shader::~Shader()
-{}
-//---------------------------------------------------------------------------
-std::string Shader::GetAttributeName(IEAttribute attribute) const
+std::size_t Texture_OpenGL::GetID() const
 {
-    // search for attribute to get name
-    IAttributeDictionary::const_iterator it = m_AttributeDictionary.find(attribute);
-
-    // found it?
-    if (it == m_AttributeDictionary.end())
-        return "";
-
-    return it->second;
-}
-//---------------------------------------------------------------------------
-void Shader::SetAttributeName(IEAttribute  attribute, const std::string& name)
-{
-    // is name empty?
-    if (!name.length())
-        return;
-
-    // change attribute name
-    m_AttributeDictionary[attribute] = name;
-}
-//---------------------------------------------------------------------------
-void Shader::PopulateAttributeDict()
-{
-    m_AttributeDictionary[IE_SA_Vertices]          = "aVertices";
-    m_AttributeDictionary[IE_SA_Normal]            = "aNormal";
-    m_AttributeDictionary[IE_SA_Texture]           = "aTexCoord";
-    m_AttributeDictionary[IE_SA_Color]             = "aColor";
-    m_AttributeDictionary[IE_SA_ProjectionMatrix]  = "uProjection";
-    m_AttributeDictionary[IE_SA_ViewMatrix]        = "uView";
-    m_AttributeDictionary[IE_SA_ModelMatrix]       = "uModel";
-    m_AttributeDictionary[IE_SA_TextureSampler]    = "sTexture";
+    return m_Index;
 }
 //---------------------------------------------------------------------------

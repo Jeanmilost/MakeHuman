@@ -28,11 +28,42 @@
 
 // classes
 #include "MHX2Reader.h"
+#include "Shader_OpenGL.h"
+#include "Renderer_OpenGL.h"
 
 // libraries
 #include <windows.h>
-#include <gl/gl.h>
 
+// openGL
+#include <gl/gl.h>
+#define GLEW_STATIC
+#include <GL/glew.h>
+
+//------------------------------------------------------------------------------
+const char vertexShader[] = "precision mediump float;"
+                            "attribute    vec3 aVertices;"
+                            "attribute    vec4 aColor;"
+                            "attribute    vec2 aTexCoord;"
+                            "uniform      mat4 uProjection;"
+                            "uniform      mat4 uView;"
+                            "uniform      mat4 uModel;"
+                            "varying lowp vec4 vColor;"
+                            "varying      vec2 vTexCoord;"
+                            "void main(void)"
+                            "{"
+                            "    vColor      = aColor;"
+                            "    vTexCoord   = aTexCoord;"
+                            "    gl_Position = uProjection * uView * uModel * vec4(aVertices, 1.0);"
+                            "}";
+//------------------------------------------------------------------------------
+const char fragmentShader[] = "precision mediump float;"
+                              "uniform      sampler2D sTexture;"
+                              "varying lowp vec4      vColor;"
+                              "varying      vec2      vTexCoord;"
+                              "void main(void)"
+                              "{"
+                              "    gl_FragColor = vColor * texture2D(sTexture, vTexCoord);"
+                              "}";
 //------------------------------------------------------------------------------
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -62,56 +93,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 //------------------------------------------------------------------------------
-void EnableOpenGL(HWND hwnd, HDC* hDC, HGLRC* hRC)
-{
-    PIXELFORMATDESCRIPTOR pfd;
-
-    int iFormat;
-
-    // get the device context (DC)
-    *hDC = GetDC(hwnd);
-
-    // set the pixel format for the DC
-    ZeroMemory(&pfd, sizeof(pfd));
-
-    pfd.nSize = sizeof(pfd);
-    pfd.nVersion = 1;
-    pfd.dwFlags = PFD_DRAW_TO_WINDOW |
-        PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cColorBits = 24;
-    pfd.cDepthBits = 16;
-    pfd.iLayerType = PFD_MAIN_PLANE;
-
-    iFormat = ::ChoosePixelFormat(*hDC, &pfd);
-
-    ::SetPixelFormat(*hDC, iFormat, &pfd);
-
-    // create and enable the render context (RC)
-    *hRC = wglCreateContext(*hDC);
-
-    wglMakeCurrent(*hDC, *hRC);
-}
-//------------------------------------------------------------------------------
-void DisableOpenGL(HWND hwnd, HDC hDC, HGLRC hRC)
-{
-    wglMakeCurrent(NULL, NULL);
-    wglDeleteContext(hRC);
-    ::ReleaseDC(hwnd, hDC);
-}
-//------------------------------------------------------------------------------
 int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
                       _In_opt_ HINSTANCE hPrevInstance,
                       _In_     LPWSTR    lpCmdLine,
                       _In_     int       nCmdShow)
 {
+    Renderer_OpenGL renderer;
+
     MHX2Reader mhx2;
     mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
 
     WNDCLASSEX wcex;
     HWND       hWnd;
-    HDC        hDC;
-    HGLRC      hRC;
     MSG        msg;
     BOOL       bQuit = FALSE;
     float      theta = 0.0f;
@@ -137,11 +130,11 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     hWnd = ::CreateWindowEx(0,
                             L"mhx2Reader",
                             L".mhx2 reader",
-                            WS_OVERLAPPEDWINDOW,
+                            WS_DLGFRAME | WS_CAPTION | WS_SYSMENU,
                             CW_USEDEFAULT,
                             CW_USEDEFAULT,
-                            256,
-                            256,
+                            800,
+                            600,
                             NULL,
                             NULL,
                             hInstance,
@@ -150,7 +143,50 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     ::ShowWindow(hWnd, nCmdShow);
 
     // enable OpenGL for the window
-    EnableOpenGL(hWnd, &hDC, &hRC);
+    renderer.EnableOpenGL(hWnd);
+
+    // stop GLEW crashing on OSX :-/
+    glewExperimental = GL_TRUE;
+
+    // initialize GLEW
+    if (glewInit() != GLEW_OK)
+    {
+        // shutdown OpenGL
+        renderer.DisableOpenGL(hWnd);
+
+        // destroy the window explicitly
+        ::DestroyWindow(hWnd);
+
+        return 0;
+    }
+
+    Shader_OpenGL shader;
+    shader.CreateProgram();
+    shader.Attach(vertexShader,   Shader::IE_ST_Vertex);
+    shader.Attach(fragmentShader, Shader::IE_ST_Fragment);
+    shader.Link(true);
+
+    RECT clientRect;
+    ::GetClientRect(hWnd, &clientRect);
+
+    Matrix4x4F projMatrix;
+
+    // create the viewport
+    renderer.CreateViewport(clientRect.right - clientRect.left,
+                            clientRect.bottom - clientRect.top,
+                            0.1f,
+                            1000.0f,
+                            &shader,
+                            projMatrix);
+
+    Matrix4x4F viewMatrix = Matrix4x4F::Identity();
+    renderer.ConnectViewMatrixToShader(&shader, viewMatrix);
+
+    ColorF bgColor;
+    bgColor.m_R = 0.0f;
+    bgColor.m_G = 0.0f;
+    bgColor.m_B = 0.0f;
+    bgColor.m_A = 1.0f;
 
     // program main loop
     while (!bQuit)
@@ -170,8 +206,7 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
         else
         {
             // OpenGL animation code goes here
-            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
+            renderer.BeginScene(bgColor, (Renderer::IESceneFlags)(Renderer::IE_SF_ClearColor | Renderer::IE_SF_ClearDepth));
 
             glPushMatrix();
             glRotatef(theta, 0.0f, 0.0f, 1.0f);
@@ -186,7 +221,7 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
             glPopMatrix();
 
-            ::SwapBuffers(hDC);
+            renderer.EndScene();
 
             theta += 1.0f;
             Sleep(1);
@@ -194,7 +229,7 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     }
 
     // shutdown OpenGL
-    DisableOpenGL(hWnd, hDC, hRC);
+    renderer.DisableOpenGL(hWnd);
 
     // destroy the window explicitly
     ::DestroyWindow(hWnd);

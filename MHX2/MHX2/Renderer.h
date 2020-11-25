@@ -154,24 +154,19 @@ class Renderer
         * Draws a mesh using shader
         *@param mesh - mesh to draw
         *@param modelMatrix - model matrix to apply to mesh
-        *@param textures - model textures
         *@param pShader - shader that will be used to draw the model
         *@return true on success, otherwise false
         */
-        virtual bool Draw(const Mesh&          mesh,
-                          const Matrix4x4F&    modelMatrix,
-                          const ModelTextures& textures,
-                          const Shader*        pShader) const = 0;
+        virtual bool Draw(const Mesh&       mesh,
+                          const Matrix4x4F& modelMatrix,
+                          const Shader*     pShader) const = 0;
 
         /**
         * Selects texture to draw
         *@param pShader - shader that will draw the texture
-        *@param textures - model texture list
-        *@param modelName - model name to draw (should match with a texture name in the list)
+        *@param pTexture - the texture to select
         */
-        virtual void SelectTexture(const Shader*        pShader,
-                                   const ModelTextures& textures,
-                                   const std::string&   modelName) const = 0;
+        virtual void SelectTexture(const Shader* pShader, const Texture* pTexture) const = 0;
 
         /**
         * Gets orthogonal projection matrix (glOrtho() OpenGL equivalent)

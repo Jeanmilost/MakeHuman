@@ -27,7 +27,9 @@
  ****************************************************************************/
 
 // classes
-#include "MHX2Reader.h"
+#include "MHX2Model.h"
+#include "PngTextureHelper.h"
+#include "Texture_OpenGL.h"
 #include "Shader_OpenGL.h"
 #include "Renderer_OpenGL.h"
 
@@ -93,16 +95,48 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 //------------------------------------------------------------------------------
+Texture* OnLoadTexture(const std::string& textureName)
+{
+    std::size_t width   = 0;
+    std::size_t height  = 0;
+    std::size_t format  = 0;
+    std::size_t length  = 0;
+    void*       pPixels = nullptr;
+
+    std::string fileName = textureName;
+
+    for (std::size_t i = 0; i < fileName.length(); ++i)
+        if (fileName[i] == '/')
+            fileName[i] = '\\';
+
+    if (!PngTextureHelper::OpenBitmapData("Resources\\Models\\mhx2\\Sandra\\" + textureName,
+                                          width,
+                                          height,
+                                          format,
+                                          length,
+                                          pPixels))
+        return nullptr;
+
+    if (!pPixels)
+        return nullptr;
+
+    std::unique_ptr<Texture_OpenGL> pTexture(new Texture_OpenGL());
+    pTexture->m_Width     = width;
+    pTexture->m_Height    = height;
+    pTexture->m_Format    = format == 24 ? Texture::IE_FT_24bit : Texture::IE_FT_32bit;
+    pTexture->m_WrapMode  = Texture::IE_WM_Clamp;
+    pTexture->m_MinFilter = Texture::IE_MI_Linear;
+    pTexture->m_MagFilter = Texture::IE_MA_Linear;
+    pTexture->Create(pPixels);
+
+    return pTexture.release();
+}
+//------------------------------------------------------------------------------
 int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
                       _In_opt_ HINSTANCE hPrevInstance,
                       _In_     LPWSTR    lpCmdLine,
                       _In_     int       nCmdShow)
 {
-    Renderer_OpenGL renderer;
-
-    MHX2Reader mhx2;
-    mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
-
     WNDCLASSEX wcex;
     HWND       hWnd;
     MSG        msg;
@@ -142,6 +176,8 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
     ::ShowWindow(hWnd, nCmdShow);
 
+    Renderer_OpenGL renderer;
+
     // enable OpenGL for the window
     renderer.EnableOpenGL(hWnd);
 
@@ -166,6 +202,11 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     shader.Attach(fragmentShader, Shader::IE_ST_Fragment);
     shader.Link(true);
 
+    MHX2Model mhx2;
+    //REM mhx2.Set_OnGetVertexColor(OnGetVertexColor);
+    mhx2.Set_OnLoadTexture(OnLoadTexture);
+    mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
+
     RECT clientRect;
     ::GetClientRect(hWnd, &clientRect);
 
@@ -182,11 +223,53 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     Matrix4x4F viewMatrix = Matrix4x4F::Identity();
     renderer.ConnectViewMatrixToShader(&shader, viewMatrix);
 
+    /*REM
+    std::size_t width;
+    std::size_t height;
+    std::size_t format;
+    std::size_t length;
+    void*       pPixels;
+
+    PngTextureHelper pngTextureHelper;
+    pngTextureHelper.OpenBitmapData("Resources\\Models\\mhx2\\Sandra\\textures\\green_eye.png",
+                                    width,
+                                    height,
+                                    format,
+                                    length,
+                                    pPixels);
+    */
+
     ColorF bgColor;
-    bgColor.m_R = 0.0f;
-    bgColor.m_G = 0.0f;
-    bgColor.m_B = 0.0f;
+    bgColor.m_R = 0.08f;
+    bgColor.m_G = 0.12f;
+    bgColor.m_B = 0.17f;
     bgColor.m_A = 1.0f;
+
+    /*
+    Matrix4x4F matrix = Matrix4x4F::Identity();
+
+    // create the rotation matrix
+    Matrix4x4F rotMat;
+    Vector3F axis;
+    axis.m_X = 1.0f;
+    axis.m_Y = 0.0f;
+    axis.m_Z = 0.0f;
+    //rotMat = matrix.Rotate(-M_PI / 2.0f, axis);
+    rotMat = matrix.Rotate(0.0f, axis);
+
+    // create the scale matrix
+    Matrix4x4F scaleMat = Matrix4x4F::Identity();
+    //scaleMat.m_Table[0][0] = 0.075f;
+    //scaleMat.m_Table[1][1] = 0.075f;
+    //scaleMat.m_Table[2][2] = 0.075f;
+
+    // place the model in the 3d world (update the matrix directly)
+    Matrix4x4F modelMatrix = rotMat.Multiply(scaleMat);
+    modelMatrix.m_Table[3][1] =  0.0f;
+    modelMatrix.m_Table[3][2] = -25.0f;
+    */
+
+    float angle = 0.0f;
 
     // program main loop
     while (!bQuit)
@@ -205,25 +288,39 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
         }
         else
         {
-            // OpenGL animation code goes here
+            Matrix4x4F matrix = Matrix4x4F::Identity();
+
+            // create the rotation matrix
+            Matrix4x4F rotMat;
+            Vector3F axis;
+            axis.m_X = 0.0f;
+            axis.m_Y = 1.0f;
+            axis.m_Z = 0.0f;
+            //rotMat = matrix.Rotate(-M_PI / 2.0f, axis);
+            rotMat = matrix.Rotate(angle, axis);
+
+            // create the scale matrix
+            Matrix4x4F scaleMat = Matrix4x4F::Identity();
+            //scaleMat.m_Table[0][0] = 0.075f;
+            //scaleMat.m_Table[1][1] = 0.075f;
+            //scaleMat.m_Table[2][2] = 0.075f;
+
+            // place the model in the 3d world (update the matrix directly)
+            Matrix4x4F modelMatrix = rotMat.Multiply(scaleMat);
+            modelMatrix.m_Table[3][1] =  0.0f;
+            modelMatrix.m_Table[3][2] = -25.0f;
+
+            // draw the scene
             renderer.BeginScene(bgColor, (Renderer::IESceneFlags)(Renderer::IE_SF_ClearColor | Renderer::IE_SF_ClearDepth));
 
-            glPushMatrix();
-            glRotatef(theta, 0.0f, 0.0f, 1.0f);
-
-            glBegin(GL_TRIANGLES);
-
-            glColor3f(1.0f, 0.0f, 0.0f);   glVertex2f(0.0f, 1.0f);
-            glColor3f(0.0f, 1.0f, 0.0f);   glVertex2f(0.87f, -0.5f);
-            glColor3f(0.0f, 0.0f, 1.0f);   glVertex2f(-0.87f, -0.5f);
-
-            glEnd();
-
-            glPopMatrix();
+            for (std::size_t i = 0; i < mhx2.GetModel()->m_Meshes.size(); ++i)
+                // draw the model mesh
+                renderer.Draw(*mhx2.GetModel()->m_Meshes[i], modelMatrix, &shader);
 
             renderer.EndScene();
 
-            theta += 1.0f;
+            angle = std::fmodf(angle + 0.01f, 2 * M_PI);
+
             Sleep(1);
         }
     }

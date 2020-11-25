@@ -1,10 +1,10 @@
 /****************************************************************************
- * ==> Renderer_OpenGL --------------------------------------------------*
+ * ==> Renderer_OpenGL -----------------------------------------------------*
  ****************************************************************************
  * Description : Renderer using OpenGL for drawing                          *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
- * MIT License - QR Engine                                                  *
+ * MIT License - mhx2 reader                                                *
  *                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a  *
  * copy of this software and associated documentation files (the            *
@@ -36,12 +36,9 @@
 // Renderer_OpenGL
 //---------------------------------------------------------------------------
 Renderer_OpenGL::Renderer_OpenGL() :
-    Renderer()
-#if defined(OS_WIN)
-    ,
-    m_hDC(NULL),
-    m_hRC(NULL)
-#endif
+    Renderer(),
+    m_hDC(nullptr),
+    m_hRC(nullptr)
 {}
 //---------------------------------------------------------------------------
 Renderer_OpenGL::~Renderer_OpenGL()
@@ -245,13 +242,12 @@ void Renderer_OpenGL::SetViewMatrix(const Shader*     pShader,
     ConnectViewMatrixToShader(pShader, viewMatrix);
 }
 //---------------------------------------------------------------------------
-bool Renderer_OpenGL::Draw(const Mesh&          mesh,
-                           const Matrix4x4F&    modelMatrix,
-                           const ModelTextures& textures,
-                           const Shader*        pShader) const
+bool Renderer_OpenGL::Draw(const Mesh&       mesh,
+                           const Matrix4x4F& modelMatrix,
+                           const Shader*     pShader) const
 {
     // get mesh count
-    const std::size_t count = mesh.size();
+    const std::size_t count = mesh.m_VB.size();
 
     // no mesh to draw?
     if (!count)
@@ -260,6 +256,9 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
     // no shader program?
     if (!pShader)
         return false;
+
+    // certify that depth test is enabled
+    glEnable(GL_DEPTH_TEST);
 
     try
     {
@@ -279,73 +278,100 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
         // connect model matrix to shader
         glUniformMatrix4fv(uniform, 1, GL_FALSE, pModelMatrix->GetPtr());
 
-        // get shader position attribute
-        GLint posAttrib = GetAttribute(pShader, Shader::IE_SA_Vertices);
-
-        // found it?
-        if (posAttrib == -1)
-            return false;
-
-        std::size_t stride;
-
-        // calculate stride. As all meshes share the same vertex properties, the first mesh can
-        // be used to extract vertex format info
-        if (mesh[0]->m_CoordType == Vertex::IE_VC_XYZ)
-            stride = 3;
-        else
-            stride = 2;
-
-        GLint normalAttrib = -1;
-
-        // do use shader normal attribute?
-        if (mesh[0]->m_Format & Vertex::IE_VF_Normals)
-        {
-            // get shader normal attribute
-            normalAttrib = GetAttribute(pShader, Shader::IE_SA_Normal);
-
-            // found it?
-            if (normalAttrib == -1)
-                return false;
-
-            stride += 3;
-        }
-
-        GLint uvAttrib = -1;
-
-        // do use shader UV attribute?
-        if (mesh[0]->m_Format & Vertex::IE_VF_TexCoords)
-        {
-            // get shader UV attribute
-            uvAttrib = GetAttribute(pShader, Shader::IE_SA_Texture);
-
-            // found it?
-            if (uvAttrib == -1)
-                return false;
-
-            // add texture coordinates to stride
-            stride += 2;
-        }
-
-        GLint colorAttrib = -1;
-
-        // do use shader color attribute?
-        if (mesh[0]->m_Format & Vertex::IE_VF_Colors)
-        {
-            // get shader color attribute
-            colorAttrib = GetAttribute(pShader, Shader::IE_SA_Color);
-
-            // found it?
-            if (colorAttrib == -1)
-                return false;
-
-            // add color to stride
-            stride += 4;
-        }
-
         // iterate through OpenGL meshes
         for (std::size_t i = 0; i < count; ++i)
         {
-            SelectTexture(pShader, textures, mesh[i]->m_Name);
+            // configure the culling
+            switch (mesh.m_VB[i]->m_Culling.m_Type)
+            {
+                case VertexCulling::IE_CT_None:  glDisable(GL_CULL_FACE); glCullFace(GL_NONE);           break;
+                case VertexCulling::IE_CT_Front: glEnable (GL_CULL_FACE); glCullFace(GL_FRONT);          break;
+                case VertexCulling::IE_CT_Back:  glEnable (GL_CULL_FACE); glCullFace(GL_BACK);           break;
+                case VertexCulling::IE_CT_Both:  glEnable (GL_CULL_FACE); glCullFace(GL_FRONT_AND_BACK); break;
+                default:                         glDisable(GL_CULL_FACE); glCullFace(GL_NONE);           break;
+            }
+
+            // configure the culling face
+            switch (mesh.m_VB[i]->m_Culling.m_Face)
+            {
+                case VertexCulling::IE_CF_CW:  glFrontFace(GL_CW);  break;
+                case VertexCulling::IE_CF_CCW: glFrontFace(GL_CCW); break;
+            }
+
+            // configure the alpha blending
+            if (mesh.m_VB[i]->m_Material.m_Transparent)
+            {
+                glEnable(GL_BLEND);
+                glBlendEquation(GL_FUNC_ADD);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
+            else
+                glDisable(GL_BLEND);
+
+            // configure the wireframe mode
+            if (mesh.m_VB[i]->m_Material.m_Wireframe)
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            else
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+            // get shader position attribute
+            GLint posAttrib = GetAttribute(pShader, Shader::IE_SA_Vertices);
+
+            // found it?
+            if (posAttrib == -1)
+                return false;
+
+            // calculate stride. NOTE the vertex contains always at least 3 values for the x, y and z coordinates
+            std::size_t stride       =  3;
+            GLint       normalAttrib = -1;
+
+            // do use shader normal attribute?
+            if (mesh.m_VB[i]->m_Format.m_Format & VertexFormat::IE_VF_Normals)
+            {
+                // get shader normal attribute
+                normalAttrib = GetAttribute(pShader, Shader::IE_SA_Normal);
+
+                // found it?
+                if (normalAttrib == -1)
+                    return false;
+
+                stride += 3;
+            }
+
+            GLint uvAttrib = -1;
+
+            // do use shader UV attribute?
+            if (mesh.m_VB[i]->m_Format.m_Format & VertexFormat::IE_VF_TexCoords)
+            {
+                // get shader UV attribute
+                uvAttrib = GetAttribute(pShader, Shader::IE_SA_Texture);
+
+                // found it?
+                if (uvAttrib == -1)
+                    return false;
+
+                // add texture coordinates to stride
+                stride += 2;
+            }
+
+            GLint colorAttrib = -1;
+
+            // do use shader color attribute?
+            if (mesh.m_VB[i]->m_Format.m_Format & VertexFormat::IE_VF_Colors)
+            {
+                // get shader color attribute
+                colorAttrib = GetAttribute(pShader, Shader::IE_SA_Color);
+
+                // found it?
+                if (colorAttrib == -1)
+                    return false;
+
+                // add color to stride
+                stride += 4;
+            }
+
+            // select the texture to apply
+            SelectTexture(pShader, mesh.m_VB[i]->m_Material.m_pTexture);
 
             std::size_t offset = 0;
 
@@ -356,12 +382,9 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
                                   GL_FLOAT,
                                   GL_FALSE,
                                   stride * sizeof(float),
-                                  &mesh[i]->m_Buffer[offset]);
+                                  &mesh.m_VB[i]->m_Data[offset]);
 
-            if (mesh[i]->m_CoordType == Vertex::IE_VC_XYZ)
-                offset = 3;
-            else
-                offset = 2;
+            offset = 3;
 
             // vertex buffer contains normals?
             if (normalAttrib != -1)
@@ -373,7 +396,7 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
                                       GL_FLOAT,
                                       GL_FALSE,
                                       stride * sizeof(float),
-                                      &mesh[i]->m_Buffer[offset]);
+                                      &mesh.m_VB[i]->m_Data[offset]);
 
                 offset += 3;
             }
@@ -389,7 +412,7 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
                                       GL_FLOAT,
                                       GL_FALSE,
                                       stride * sizeof(float),
-                                      &mesh[i]->m_Buffer[offset]);
+                                      &mesh.m_VB[i]->m_Data[offset]);
 
                 offset += 2;
             }
@@ -405,19 +428,19 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
                                       GL_FLOAT,
                                       GL_FALSE,
                                       stride * sizeof(float),
-                                      &mesh[i]->m_Buffer[offset]);
+                                      &mesh.m_VB[i]->m_Data[offset]);
             }
 
             // draw mesh
-            switch (mesh[i]->m_Type)
+            switch (mesh.m_VB[i]->m_Format.m_Type)
             {
-                case Vertex::IE_VT_Triangles:     glDrawArrays(GL_TRIANGLES,      0, mesh[i]->m_Buffer.size() / stride); break;
-                case Vertex::IE_VT_TriangleStrip: glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh[i]->m_Buffer.size() / stride); break;
-                case Vertex::IE_VT_TriangleFan:   glDrawArrays(GL_TRIANGLE_FAN,   0, mesh[i]->m_Buffer.size() / stride); break;
-                case Vertex::IE_VT_Quads:         glDrawArrays(GL_QUADS,          0, mesh[i]->m_Buffer.size() / stride); break;
-                case Vertex::IE_VT_QuadStrip:     glDrawArrays(GL_QUAD_STRIP,     0, mesh[i]->m_Buffer.size() / stride); break;
-                case Vertex::IE_VT_Unknown:
-                default:                          throw new std::exception("Unknown vertex type");
+                case VertexFormat::IE_VT_Triangles:     glDrawArrays(GL_TRIANGLES,      0, mesh.m_VB[i]->m_Data.size() / stride); break;
+                case VertexFormat::IE_VT_TriangleStrip: glDrawArrays(GL_TRIANGLE_STRIP, 0, mesh.m_VB[i]->m_Data.size() / stride); break;
+                case VertexFormat::IE_VT_TriangleFan:   glDrawArrays(GL_TRIANGLE_FAN,   0, mesh.m_VB[i]->m_Data.size() / stride); break;
+                case VertexFormat::IE_VT_Quads:         glDrawArrays(GL_QUADS,          0, mesh.m_VB[i]->m_Data.size() / stride); break;
+                case VertexFormat::IE_VT_QuadStrip:     glDrawArrays(GL_QUAD_STRIP,     0, mesh.m_VB[i]->m_Data.size() / stride); break;
+                case VertexFormat::IE_VT_Unknown:
+                default:                                throw new std::exception("Unknown vertex type");
             }
         }
     }
@@ -434,48 +457,17 @@ bool Renderer_OpenGL::Draw(const Mesh&          mesh,
     return true;
 }
 //---------------------------------------------------------------------------
-void Renderer_OpenGL::SelectTexture(const Shader*        pShader,
-                                    const ModelTextures& textures,
-                                    const std::string&   modelName) const
+void Renderer_OpenGL::SelectTexture(const Shader* pShader, const Texture* pTexture) const
 {
-    // get color map slot from shader
-    GLint uniform = GetUniform(pShader, Shader::IE_SA_TextureSampler);
-
-    // found it?
-    if (uniform == -1)
-        // nothing to do (some shader may have no texture to handle)
-        return;
-
     // do draw textures?
-    if (!textures.size())
+    if (!pTexture)
     {
         glDisable(GL_TEXTURE_2D);
         return;
     }
 
-    int index = -1;
-
-    const int textureCount = textures.size();
-
-    // iterate through textures belonging to model
-    for (int i = 0; i < textureCount; ++i)
-        // found a texture to draw?
-        if (textures[i] && textures[i]->m_Enabled && textures[i]->m_Name == modelName)
-        {
-            // get texture index
-            index = i;
-            break;
-        }
-
-    // found texture index to select?
-    if (index >= 0)
-    {
-        // select texture
-        textures[index]->Select(pShader);
-        return;
-    }
-
-    glDisable(GL_TEXTURE_2D);
+    // select texture
+    pTexture->Select(pShader);
 }
 //---------------------------------------------------------------------------
 int Renderer_OpenGL::GetUniform(const Shader* pShader, Shader::IEAttribute attribute)

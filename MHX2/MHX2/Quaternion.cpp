@@ -1,10 +1,10 @@
 /****************************************************************************
- * ==> MHX2Renderer --------------------------------------------------------*
+ * ==> Quaternion ----------------------------------------------------------*
  ****************************************************************************
- * Description : MakeHuman .mhx2 model renderer                             *
+ * Description : Quaternion                                                 *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
- * MIT License - mhx2 reader                                                *
+ * MIT License - x model reader                                             *
  *                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a  *
  * copy of this software and associated documentation files (the            *
@@ -26,15 +26,4 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#pragma once
-
-/**
-* MakeHuman .mhx2 model renderer
-*@author Jean-Milost Reymond
-*/
-class MHX2Renderer
-{
-    public:
-        MHX2Renderer();
-        virtual ~MHX2Renderer();
-};
+#include "Quaternion.h"

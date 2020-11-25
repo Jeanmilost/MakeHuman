@@ -58,33 +58,3 @@ void Texture::Clear()
     m_Height    = 0;
 }
 //---------------------------------------------------------------------------
-// ModelTexture
-//---------------------------------------------------------------------------
-ModelTexture::ModelTexture() :
-    m_pTexture(NULL),
-    m_Enabled(false)
-{}
-//---------------------------------------------------------------------------
-ModelTexture::~ModelTexture()
-{}
-//---------------------------------------------------------------------------
-void ModelTexture::Clear()
-{
-    m_Name.clear();
-
-    if (m_pTexture)
-        m_pTexture->Clear();
-
-    m_Enabled = false;
-}
-//---------------------------------------------------------------------------
-void ModelTexture::Select(const Shader* pShader) const
-{
-    // disabled?
-    if (!m_Enabled)
-        return;
-
-    if (m_pTexture)
-        m_pTexture->Select(pShader);
-}
-//---------------------------------------------------------------------------

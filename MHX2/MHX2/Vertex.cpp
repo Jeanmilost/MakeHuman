@@ -31,70 +31,124 @@
  // std
 #include <memory>
 
+
 //---------------------------------------------------------------------------
-// Vertex
+// Material
 //---------------------------------------------------------------------------
-Vertex::Vertex() :
+Material::Material() :
+    m_pTexture(nullptr),
+    m_Color(ColorF(1.0f, 1.0f, 1.0f, 1.0f)),
+    m_Transparent(false),
+    m_Wireframe(false)
+{}
+//---------------------------------------------------------------------------
+Material::~Material()
+{
+    if (m_pTexture)
+        delete m_pTexture;
+}
+//---------------------------------------------------------------------------
+// VertexFormat
+//---------------------------------------------------------------------------
+VertexFormat::VertexFormat() :
     m_Stride(0),
     m_Type(IE_VT_Unknown),
-    m_Format(IE_VF_None),
-    m_CoordType(IE_VC_XYZ)
+    m_Format(IE_VF_None)
 {}
 //---------------------------------------------------------------------------
-Vertex::~Vertex()
+VertexFormat::~VertexFormat()
 {}
 //---------------------------------------------------------------------------
-Vertex* Vertex::Clone() const
+void VertexFormat::CalculateStride()
+{
+    // by default, at least x, y and z values
+    m_Stride = 3;
+
+    // do include normals?
+    if (m_Format & IE_VF_Normals)
+        m_Stride += 3;
+
+    // do include texture coordinates?
+    if (m_Format & IE_VF_TexCoords)
+        m_Stride += 2;
+
+    // do include vertex color?
+    if (m_Format & IE_VF_Colors)
+        m_Stride += 4;
+}
+//---------------------------------------------------------------------------
+bool VertexFormat::CompareFormat(const VertexFormat& other) const
+{
+    return (m_Stride == other.m_Stride &&
+            m_Type   == other.m_Type   &&
+            m_Format == other.m_Format);
+}
+//---------------------------------------------------------------------------
+// VertexBuffer
+//---------------------------------------------------------------------------
+VertexCulling::VertexCulling() :
+    m_Type(IE_CT_None),
+    m_Face(IE_CF_CW)
+{}
+//---------------------------------------------------------------------------
+VertexCulling::~VertexCulling()
+{}
+//---------------------------------------------------------------------------
+// VertexBuffer
+//---------------------------------------------------------------------------
+VertexBuffer::VertexBuffer()
+{}
+//---------------------------------------------------------------------------
+VertexBuffer::~VertexBuffer()
+{}
+//---------------------------------------------------------------------------
+VertexBuffer* VertexBuffer::Clone(bool includeData) const
 {
     // clone vertex
-    std::unique_ptr<Vertex> pClone(new Vertex());
-    pClone->m_Name      = m_Name;
-    pClone->m_Stride    = m_Stride;
-    pClone->m_Type      = m_Type;
-    pClone->m_Format    = m_Format;
-    pClone->m_CoordType = m_CoordType;
+    std::unique_ptr<VertexBuffer> pClone(new VertexBuffer());
+    pClone->m_Name = m_Name;
+
+    // copy the format
+    pClone->m_Format.m_Stride = m_Format.m_Stride;
+    pClone->m_Format.m_Type   = m_Format.m_Type;
+    pClone->m_Format.m_Format = m_Format.m_Format;
+
+    // copy the culling
+    pClone->m_Culling.m_Type = m_Culling.m_Type;
+    pClone->m_Culling.m_Face = m_Culling.m_Face;
+
+    // copy the material
+    pClone->m_Material.m_Color       = m_Material.m_Color;
+    pClone->m_Material.m_Transparent = m_Material.m_Transparent;
+    pClone->m_Material.m_Wireframe   = m_Material.m_Wireframe;
+
+    // do clone the vertex buffer data?
+    if (includeData)
+    {
+        const std::size_t dataCount = m_Data.size();
+
+        // resize the destination
+        pClone->m_Data.resize(dataCount);
+
+        // copy the data
+        for (std::size_t i = 0; i < dataCount; ++i)
+            pClone->m_Data[i] = m_Data[i];
+    }
+
     return pClone.release();
 }
 //---------------------------------------------------------------------------
-std::size_t Vertex::CalculateStride() const
-{
-    std::size_t stride;
-
-    // search for coordinate type
-    switch (m_CoordType)
-    {
-        case IE_VC_XY:
-            stride = 2;
-            break;
-
-        case IE_VC_XYZ:
-            stride = 3;
-            break;
-
-        default:
-            throw new std::exception("Unknown coordinate type");
-    }
-
-    // do include normals?
-    if (m_Format & Vertex::IE_VF_Normals)
-        stride += 3;
-
-    // do include texture coordinates?
-    if (m_Format & Vertex::IE_VF_TexCoords)
-        stride += 2;
-
-    // do include vertex color?
-    if (m_Format & Vertex::IE_VF_Colors)
-        stride += 4;
-
-    return stride;
-}
+// Mesh
 //---------------------------------------------------------------------------
-bool Vertex::CompareFormat(const Vertex& other) const
+Mesh::Mesh()
+{}
+//---------------------------------------------------------------------------
+Mesh::~Mesh()
 {
-    return (m_Stride    == other.m_Stride &&
-            m_Type      == other.m_Type &&
-            m_Format    == other.m_Format &&
-            m_CoordType == other.m_CoordType);
+    const std::size_t count = m_VB.size();
+
+    // clear vertex buffers
+    for (std::size_t i = 0; i < count; ++i)
+        delete m_VB[i];
 }
 //---------------------------------------------------------------------------

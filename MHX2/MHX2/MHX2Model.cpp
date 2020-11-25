@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> MHX2Reader ----------------------------------------------------------*
+ * ==> MHX2Model -----------------------------------------------------------*
  ****************************************************************************
- * Description : MakeHuman .mhx2 file reader                                *
+ * Description : MakeHuman .mhx2 model                                      *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -26,28 +26,70 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                   *
  ****************************************************************************/
 
-#include "MHX2Reader.h"
+#include "MHX2Model.h"
 
  //---------------------------------------------------------------------------
- // MHX2Reader::ILogger
+ // MHX2Model::IBone
  //---------------------------------------------------------------------------
-MHX2Reader::ILogger::ILogger()
+MHX2Model::IBone::IBone() :
+    m_pParent(nullptr),
+    m_Roll(0.0f)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::ILogger::~ILogger()
+MHX2Model::IBone::~IBone()
+{
+    const std::size_t count = m_Children.size();
+
+    for (std::size_t i = 0; i < count; ++i)
+        delete m_Children[i];
+}
+//---------------------------------------------------------------------------
+// MHX2Model::ISkeleton
+//---------------------------------------------------------------------------
+MHX2Model::ISkeleton::ISkeleton() :
+    m_Scale(1.0f),
+    m_pRoot(nullptr)
 {}
 //---------------------------------------------------------------------------
-void MHX2Reader::ILogger::Clear()
+MHX2Model::ISkeleton::~ISkeleton()
+{
+    if (m_pRoot)
+        delete m_pRoot;
+}
+//---------------------------------------------------------------------------
+// MHX2Model::IModel
+//---------------------------------------------------------------------------
+MHX2Model::IModel::IModel() :
+    m_pSkeleton(nullptr)
+{}
+//---------------------------------------------------------------------------
+MHX2Model::IModel::~IModel()
+{
+    const std::size_t count = m_Meshes.size();
+
+    for (std::size_t i = 0; i < count; ++i)
+        delete m_Meshes[i];
+}
+//---------------------------------------------------------------------------
+// MHX2Model::ILogger
+//---------------------------------------------------------------------------
+MHX2Model::ILogger::ILogger()
+{}
+//---------------------------------------------------------------------------
+MHX2Model::ILogger::~ILogger()
+{}
+//---------------------------------------------------------------------------
+void MHX2Model::ILogger::Clear()
 {
     m_Lines.clear();
 }
 //---------------------------------------------------------------------------
-void MHX2Reader::ILogger::Log(const std::string& message)
+void MHX2Model::ILogger::Log(const std::string& message)
 {
     m_Lines.push_back(message);
 }
 //---------------------------------------------------------------------------
-void MHX2Reader::ILogger::Log(json_value* pJson, const std::string& message)
+void MHX2Model::ILogger::Log(json_value* pJson, const std::string& message)
 {
     std::ostringstream sstr;
 
@@ -74,15 +116,15 @@ void MHX2Reader::ILogger::Log(json_value* pJson, const std::string& message)
     m_Lines.push_back(sstr.str());
 }
 //---------------------------------------------------------------------------
- // MHX2Reader::IItem
+ // MHX2Model::IItem
  //---------------------------------------------------------------------------
-MHX2Reader::IItem::IItem()
+MHX2Model::IItem::IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IItem::~IItem()
+MHX2Model::IItem::~IItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t& index, ILogger& logger) const
+bool MHX2Model::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t& index, ILogger& logger) const
 {
     // no source data?
     if (!pJson)
@@ -149,7 +191,7 @@ bool MHX2Reader::IItem::ParseColor(json_value* pJson, ColorF& color, std::size_t
     return false;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, ILogger& logger) const
+bool MHX2Model::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::size_t& index, ILogger& logger) const
 {
     // no source data?
     if (!pJson)
@@ -214,7 +256,7 @@ bool MHX2Reader::IItem::ParseVector(json_value* pJson, Vector3F& vector, std::si
     return false;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, ILogger& logger) const
+bool MHX2Model::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::size_t& x, std::size_t& y, ILogger& logger) const
 {
     // no source data?
     if (!pJson)
@@ -269,17 +311,17 @@ bool MHX2Reader::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IBone
+// MHX2Model::IBoneItem
 //---------------------------------------------------------------------------
-MHX2Reader::IBone::IBone() :
+MHX2Model::IBoneItem::IBoneItem() :
     IItem(),
     m_Roll(0.0f)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IBone::~IBone()
+MHX2Model::IBoneItem::~IBoneItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IBone::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IBoneItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -374,14 +416,14 @@ bool MHX2Reader::IBone::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::ISkeleton
+// MHX2Model::ISkeletonItem
 //---------------------------------------------------------------------------
-MHX2Reader::ISkeleton::ISkeleton() :
+MHX2Model::ISkeletonItem::ISkeletonItem() :
     IItem(),
     m_Scale(0.0f)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::ISkeleton::~ISkeleton()
+MHX2Model::ISkeletonItem::~ISkeletonItem()
 {
     const std::size_t count = m_Bones.size();
 
@@ -390,7 +432,7 @@ MHX2Reader::ISkeleton::~ISkeleton()
         delete m_Bones[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::ISkeleton::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::ISkeletonItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -427,7 +469,7 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, ILogger& logger)
                     // bone array, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IBone> pBone(new IBone());
+                        std::unique_ptr<IBoneItem> pBone(new IBoneItem());
 
                         if (!pBone->Parse(it, logger))
                             return false;
@@ -483,9 +525,9 @@ bool MHX2Reader::ISkeleton::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IMaterial
+// MHX2Model::IMaterialItem
 //---------------------------------------------------------------------------
-MHX2Reader::IMaterial::IMaterial() :
+MHX2Model::IMaterialItem::IMaterialItem() :
     IItem(),
     m_Ambient(ColorF(1.0f, 1.0f, 1.0f, 1.0f)),
     m_Diffuse(ColorF(1.0f, 1.0f, 1.0f, 1.0f)),
@@ -510,10 +552,10 @@ MHX2Reader::IMaterial::IMaterial() :
     m_SssEnabled(false)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IMaterial::~IMaterial()
+MHX2Model::IMaterialItem::~IMaterialItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IMaterial::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IMaterialItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -774,16 +816,16 @@ bool MHX2Reader::IMaterial::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::ILicense
+// MHX2Model::ILicenseItem
 //---------------------------------------------------------------------------
-MHX2Reader::ILicense::ILicense() :
+MHX2Model::ILicenseItem::ILicenseItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::ILicense::~ILicense()
+MHX2Model::ILicenseItem::~ILicenseItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::ILicense::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::ILicenseItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -841,16 +883,16 @@ bool MHX2Reader::ILicense::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IFace
+// MHX2Model::IFaceItem
 //---------------------------------------------------------------------------
-MHX2Reader::IFace::IFace() :
+MHX2Model::IFaceItem::IFaceItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IFace::~IFace()
+MHX2Model::IFaceItem::~IFaceItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IFace::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IFaceItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -884,19 +926,17 @@ bool MHX2Reader::IFace::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IUVCoord
+// MHX2Model::IUVCoordItem
 //---------------------------------------------------------------------------
-MHX2Reader::IUVCoord::IUVCoord() :
+MHX2Model::IUVCoordItem::IUVCoordItem() :
     IItem(),
-    m_X(0.0f),
-    m_Y(0.0f),
     m_InternalIndex(0)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IUVCoord::~IUVCoord()
+MHX2Model::IUVCoordItem::~IUVCoordItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IUVCoordItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -928,8 +968,8 @@ bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
             // read the value
             switch (m_InternalIndex)
             {
-                case 0: m_X = float(pJson->int_value); break;
-                case 1: m_Y = float(pJson->int_value); break;
+                case 0: m_Value.m_X = float(pJson->int_value); break;
+                case 1: m_Value.m_Y = float(pJson->int_value); break;
 
                 default:
                     logger.Log(pJson, "Parse uv coords - index is out of bounds", m_InternalIndex);
@@ -943,8 +983,8 @@ bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
             // read the value
             switch (m_InternalIndex)
             {
-                case 0: m_X = pJson->float_value; break;
-                case 1: m_Y = pJson->float_value; break;
+                case 0: m_Value.m_X = pJson->float_value; break;
+                case 1: m_Value.m_Y = pJson->float_value; break;
 
                 default:
                     logger.Log(pJson, "Parse uv coords - index is out of bounds", m_InternalIndex);
@@ -959,19 +999,19 @@ bool MHX2Reader::IUVCoord::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IWeight
+// MHX2Model::IWeightItem
 //---------------------------------------------------------------------------
-MHX2Reader::IWeight::IWeight() :
+MHX2Model::IWeightItem::IWeightItem() :
     IItem(),
     m_Index(0),
     m_InternalIndex(0),
     m_Value(0.0f)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IWeight::~IWeight()
+MHX2Model::IWeightItem::~IWeightItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IWeight::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IWeightItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1025,13 +1065,13 @@ bool MHX2Reader::IWeight::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IWeightGroup
+// MHX2Model::IWeightGroupItem
 //---------------------------------------------------------------------------
-MHX2Reader::IWeightGroup::IWeightGroup() :
+MHX2Model::IWeightGroupItem::IWeightGroupItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IWeightGroup::~IWeightGroup()
+MHX2Model::IWeightGroupItem::~IWeightGroupItem()
 {
     const std::size_t weightCount = m_Weights.size();
 
@@ -1040,7 +1080,7 @@ MHX2Reader::IWeightGroup::~IWeightGroup()
         delete m_Weights[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IWeightGroup::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IWeightGroupItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1061,7 +1101,7 @@ bool MHX2Reader::IWeightGroup::Parse(json_value* pJson, ILogger& logger)
             // iterate through children, each of them contains a weight group
             for (json_value* it = pJson->first_child; it; it = it->next_sibling)
             {
-                std::unique_ptr<IWeight> pWeight(new IWeight());
+                std::unique_ptr<IWeightItem> pWeight(new IWeightItem());
 
                 if (!pWeight->Parse(it, logger))
                     return false;
@@ -1077,13 +1117,13 @@ bool MHX2Reader::IWeightGroup::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IFit
+// MHX2Model::IFitItem
 //---------------------------------------------------------------------------
-MHX2Reader::IFit::IFit() :
+MHX2Model::IFitItem::IFitItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IFit::~IFit()
+MHX2Model::IFitItem::~IFitItem()
 {
     const std::size_t count = m_Values.size();
 
@@ -1092,7 +1132,7 @@ MHX2Reader::IFit::~IFit()
         delete m_Values[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IFit::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IFitItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1127,13 +1167,13 @@ bool MHX2Reader::IFit::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IMesh
+// MHX2Model::IMeshItem
 //---------------------------------------------------------------------------
-MHX2Reader::IMesh::IMesh() :
+MHX2Model::IMeshItem::IMeshItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IMesh::~IMesh()
+MHX2Model::IMeshItem::~IMeshItem()
 {
     const std::size_t vertCount = m_Vertices.size();
 
@@ -1166,7 +1206,7 @@ MHX2Reader::IMesh::~IMesh()
         delete m_WeightGroups[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IMeshItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1235,7 +1275,7 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                     // faces, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IFace> pFace(new IFace());
+                        std::unique_ptr<IFaceItem> pFace(new IFaceItem());
 
                         if (!pFace->Parse(it, logger))
                             return false;
@@ -1252,7 +1292,7 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                     // uv coordinates, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IUVCoord> pUvCoord(new IUVCoord());
+                        std::unique_ptr<IUVCoordItem> pUvCoord(new IUVCoordItem());
 
                         if (!pUvCoord->Parse(it, logger))
                             return false;
@@ -1269,7 +1309,7 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                     // uv faces, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IFace> pUvFace(new IFace());
+                        std::unique_ptr<IFaceItem> pUvFace(new IFaceItem());
 
                         if (!pUvFace->Parse(it, logger))
                             return false;
@@ -1286,7 +1326,7 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
                     // weight groups, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IWeightGroup> pWeightGroup(new IWeightGroup());
+                        std::unique_ptr<IWeightGroupItem> pWeightGroup(new IWeightGroupItem());
 
                         if (!pWeightGroup->Parse(it, logger))
                             return false;
@@ -1306,14 +1346,14 @@ bool MHX2Reader::IMesh::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IProxy
+// MHX2Model::IProxyItem
 //---------------------------------------------------------------------------
-MHX2Reader::IProxy::IProxy() :
+MHX2Model::IProxyItem::IProxyItem() :
     IItem(),
     m_pVertexBoneWeights(nullptr)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IProxy::~IProxy()
+MHX2Model::IProxyItem::~IProxyItem()
 {
     const std::size_t fitCount = m_Fitting.size();
 
@@ -1325,7 +1365,7 @@ MHX2Reader::IProxy::~IProxy()
         delete m_pVertexBoneWeights;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IProxy::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IProxyItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1369,7 +1409,7 @@ bool MHX2Reader::IProxy::Parse(json_value* pJson, ILogger& logger)
                     // iterate through fits and read each of them
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IFit> pFit(new IFit());
+                        std::unique_ptr<IFitItem> pFit(new IFitItem());
 
                         // read the fit
                         if (!pFit->Parse(it, logger))
@@ -1465,19 +1505,19 @@ bool MHX2Reader::IProxy::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IGeometry
+// MHX2Model::IGeometryItem
 //---------------------------------------------------------------------------
-MHX2Reader::IGeometry::IGeometry() :
+MHX2Model::IGeometryItem::IGeometryItem() :
     IItem(),
     m_Scale(1.0f),
     m_IsHuman(true),
     m_IsSubdivided(false)
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IGeometry::~IGeometry()
+MHX2Model::IGeometryItem::~IGeometryItem()
 {}
 //---------------------------------------------------------------------------
-bool MHX2Reader::IGeometry::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IGeometryItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1597,13 +1637,13 @@ bool MHX2Reader::IGeometry::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader::IModel
+// MHX2Model::IModelItem
 //---------------------------------------------------------------------------
-MHX2Reader::IModel::IModel() :
+MHX2Model::IModelItem::IModelItem() :
     IItem()
 {}
 //---------------------------------------------------------------------------
-MHX2Reader::IModel::~IModel()
+MHX2Model::IModelItem::~IModelItem()
 {
     const std::size_t materialCount = m_Materials.size();
 
@@ -1618,7 +1658,7 @@ MHX2Reader::IModel::~IModel()
         delete m_Geometries[i];
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::IModel::Parse(json_value* pJson, ILogger& logger)
+bool MHX2Model::IModelItem::Parse(json_value* pJson, ILogger& logger)
 {
     // no source data?
     if (!pJson)
@@ -1649,7 +1689,7 @@ bool MHX2Reader::IModel::Parse(json_value* pJson, ILogger& logger)
                     // material array, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IMaterial> pMaterial(new IMaterial());
+                        std::unique_ptr<IMaterialItem> pMaterial(new IMaterialItem());
 
                         if (!pMaterial->Parse(it, logger))
                             return false;
@@ -1666,7 +1706,7 @@ bool MHX2Reader::IModel::Parse(json_value* pJson, ILogger& logger)
                     // geometry array, iterate through children
                     for (json_value* it = pJson->first_child; it; it = it->next_sibling)
                     {
-                        std::unique_ptr<IGeometry> pGeometry(new IGeometry());
+                        std::unique_ptr<IGeometryItem> pGeometry(new IGeometryItem());
 
                         if (!pGeometry->Parse(it, logger))
                             return false;
@@ -1702,19 +1742,33 @@ bool MHX2Reader::IModel::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Reader
+// MHX2Model
 //---------------------------------------------------------------------------
-MHX2Reader::MHX2Reader() :
-    m_pModel(nullptr)
-{}
+MHX2Model::MHX2Model() :
+    m_pModel(nullptr),
+    m_MeshOnly(false),
+    m_PoseOnly(false),
+    m_fOnGetVertexColor(nullptr),
+    m_fOnLoadTexture(nullptr)
+{
+    // configure the default vertex format
+    m_VertFormatTemplate.m_Format = (VertexFormat::IEFormat)(VertexFormat::IE_VF_Colors | VertexFormat::IE_VF_TexCoords);
+
+    // configure the default vertex culling
+    m_VertCullingTemplate.m_Type = VertexCulling::IE_CT_Back;
+    m_VertCullingTemplate.m_Face = VertexCulling::IE_CF_CCW;
+
+    // configure the default material
+    m_MaterialTemplate.m_Color = ColorF(1.0f, 1.0f, 1.0f, 1.0f);
+}
 //---------------------------------------------------------------------------
-MHX2Reader::~MHX2Reader()
+MHX2Model::~MHX2Model()
 {
     if (m_pModel)
         delete m_pModel;
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::Open(const std::string& fileName)
+bool MHX2Model::Open(const std::string& fileName)
 {
     // no file name?
     if (fileName.empty())
@@ -1782,7 +1836,7 @@ bool MHX2Reader::Open(const std::string& fileName)
     return (success && (bufferSize == fileSize) && Read(data));
 }
 //---------------------------------------------------------------------------
-bool MHX2Reader::Read(const std::string& data)
+bool MHX2Model::Read(const std::string& data)
 {
     // delete any previously opened model
     if (m_pModel)
@@ -1806,9 +1860,322 @@ bool MHX2Reader::Read(const std::string& data)
     if (!pJson || pJson->type != JSON_OBJECT)
         return false;
 
-    // create the model
-    m_pModel = new IModel();
+    // create the mhx2 model item
+    std::unique_ptr<IModelItem> pModelItem(new IModelItem());
 
-    return m_pModel->Parse(pJson, m_Logger);
+    // parse the model
+    if (!pModelItem->Parse(pJson, m_Logger))
+        return false;
+
+    // create the mhx2 model
+    std::unique_ptr<IModel>    pModel(new IModel());
+    std::unique_ptr<ISkeleton> pSkeleton(new ISkeleton());
+
+    // build the model skeleton
+    if (!BuildSkeleton(pModelItem->m_Skeleton, pSkeleton.get()))
+        return false;
+
+    pModel->m_pSkeleton = pSkeleton.release();
+
+    const std::size_t geometryCount = pModelItem->m_Geometries.size();
+
+    // build the model geometries
+    for (std::size_t i = 0; i < geometryCount; ++i)
+        if (!BuildGeometry(pModelItem.get(), pModelItem->m_Geometries[i], pModel.get()))
+            return false;
+
+    m_pModel = pModel.release();
+    return true;
+}
+//---------------------------------------------------------------------------
+MHX2Model::IModel* MHX2Model::GetModel() const
+{
+    return m_pModel;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::SetVertFormatTemplate(const VertexFormat& vertFormatTemplate)
+{
+    m_VertFormatTemplate = vertFormatTemplate;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::SetVertCullingTemplate(const VertexCulling& vertCullingTemplate)
+{
+    m_VertCullingTemplate = vertCullingTemplate;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::SetMaterial(const Material& materialTemplate)
+{
+    m_MaterialTemplate = materialTemplate;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::Set_OnGetVertexColor(ITfOnGetVertexColor fOnGetVertexColor)
+{
+    m_fOnGetVertexColor = fOnGetVertexColor;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::Set_OnLoadTexture(ITfOnLoadTexture fOnLoadTexture)
+{
+    m_fOnLoadTexture = fOnLoadTexture;
+}
+//---------------------------------------------------------------------------
+bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSkeleton)
+{
+    if (!pSkeleton)
+        return false;
+
+    // populate the skeleton object
+    pSkeleton->m_Name   = skeletonItem.m_Name;
+    pSkeleton->m_Scale  = skeletonItem.m_Scale;
+    pSkeleton->m_Offset = skeletonItem.m_Offset;
+
+    // get the bone count
+    const std::size_t boneCount = skeletonItem.m_Bones.size();
+
+    // iterate through the bones and build the skeleton
+    for (std::size_t i = 0; i < boneCount; ++i)
+    {
+        // create the bone and populate it
+        std::unique_ptr<IBone> pBone(new IBone());
+        pBone->m_Name   = skeletonItem.m_Bones[i]->m_Name;
+        pBone->m_Head   = skeletonItem.m_Bones[i]->m_Head;
+        pBone->m_Tail   = skeletonItem.m_Bones[i]->m_Tail;
+        pBone->m_Roll   = skeletonItem.m_Bones[i]->m_Roll;
+        pBone->m_Matrix = skeletonItem.m_Bones[i]->m_Matrix;
+
+        // link the parent bone
+        if (!skeletonItem.m_Bones[i]->m_Parent.empty())
+            pBone->m_pParent = GetBone(skeletonItem.m_Bones[i]->m_Parent, pSkeleton->m_pRoot);
+
+        // is the root bone?
+        if (!pBone->m_pParent)
+        {
+            // only one root bone may exist, if another was previously assigned it's an error
+            if (!pSkeleton->m_pRoot)
+                pSkeleton->m_pRoot = pBone.release();
+            else
+                return false;
+        }
+        else
+        {
+            // add this bone to the parent children bones
+            pBone->m_pParent->m_Children.push_back(pBone.get());
+            pBone.release();
+        }
+    }
+
+    return true;
+}
+//---------------------------------------------------------------------------
+MHX2Model::IBone* MHX2Model::GetBone(const std::string& name, IBone* pBone) const
+{
+    // no parent bone?
+    if (!pBone)
+        return nullptr;
+
+    // found the bone to get?
+    if (pBone->m_Name == name)
+        return pBone;
+
+    // get children count
+    const std::size_t count = pBone->m_Children.size();
+
+    // Search for the bone in children
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        IBone* pChild = GetBone(name, pBone->m_Children[i]);
+
+        if (pChild)
+            return pChild;
+    }
+
+    return nullptr;
+}
+//---------------------------------------------------------------------------
+bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, IModel* pModel)
+{
+    if (!pModelItem)
+        return false;
+
+    if (!pGeometryItem)
+        return false;
+
+    if (!pModel)
+        return false;
+
+    std::unique_ptr<Mesh>         pMesh(new Mesh());
+    std::unique_ptr<VertexBuffer> pVB(new VertexBuffer());
+
+    // apply the user wished vertex format
+    pVB->m_Format = m_VertFormatTemplate;
+
+    // apply the user wished vertex culling
+    pVB->m_Culling = m_VertCullingTemplate;
+
+    // apply the user wished material
+    pVB->m_Material = m_MaterialTemplate;
+
+    // set the vertex format type
+    pVB->m_Format.m_Type = VertexFormat::IE_VT_Triangles;
+
+    // calculate the stride
+    pVB->m_Format.CalculateStride();
+
+    const std::size_t faceCount = pGeometryItem->m_Mesh.m_Faces.size();
+
+    // load the texture
+    if (m_fOnLoadTexture)
+    {
+        IMaterialItem*    pMaterial     = nullptr;
+        const std::size_t materialCount = pModelItem->m_Materials.size();
+
+        for (std::size_t i = 0; i < materialCount; ++i)
+            if (pModelItem->m_Materials[i]->m_Name == pGeometryItem->m_Material)
+            {
+                pMaterial = pModelItem->m_Materials[i];
+                break;
+            }
+
+        if (pMaterial)
+            pVB->m_Material.m_pTexture = m_fOnLoadTexture(pMaterial->m_DiffuseTexture);
+    }
+
+    for (std::size_t i = 0; i < faceCount; ++i)
+    {
+        const IFaceItem*  pFace      = pGeometryItem->m_Mesh.m_Faces[i];
+        const IFaceItem*  pUVFace    = pGeometryItem->m_Mesh.m_UVFaces[i];
+        const std::size_t valueCount = pFace->m_Values.size();
+
+        for (std::size_t j = 0; j < valueCount - 2; ++j)
+        {
+            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[0]],
+                           &Vector3F(),
+                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[0]]->m_Value,
+                            0,
+                            m_fOnGetVertexColor,
+                            pVB.get());
+            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[j + 1]],
+                           &Vector3F(),
+                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[j + 1]]->m_Value,
+                            0,
+                            m_fOnGetVertexColor,
+                            pVB.get());
+            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[j + 2]],
+                           &Vector3F(),
+                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[j + 2]]->m_Value,
+                            0,
+                            m_fOnGetVertexColor,
+                            pVB.get());
+        }
+    }
+
+    pMesh->m_VB.push_back(pVB.get());
+    pVB.release();
+
+    pModel->m_Meshes.push_back(pMesh.get());
+    pMesh.release();
+
+    return true;
+}
+//---------------------------------------------------------------------------
+bool MHX2Model::VertexBufferAdd(const Vector3F*           pVertex,
+                                const Vector3F*           pNormal,
+                                const Vector2F*           pUV,
+                                      std::size_t         groupIndex,
+                                const ITfOnGetVertexColor fOnGetVertexColor,
+                                      VertexBuffer*       pVB) const
+{
+    // no vertex buffer to add to?
+    if (!pVB)
+        return false;
+
+    // the stride should be already calculated
+    if (!pVB->m_Format.m_Stride)
+        return false;
+
+    // keep the current offset
+    std::size_t offset = pVB->m_Data.size();
+
+    // allocate space for new vertex
+    pVB->m_Data.resize(pVB->m_Data.size() + pVB->m_Format.m_Stride);
+
+    // source vertex exists?
+    if (!pVertex)
+    {
+        // cannot add a nonexistent vertex, fill with empty data in this case
+        pVB->m_Data[offset]     = 0.0f;
+        pVB->m_Data[offset + 1] = 0.0f;
+        pVB->m_Data[offset + 2] = 0.0f;
+    }
+    else
+    {
+        // copy vertex from source
+        pVB->m_Data[offset]     = pVertex->m_X;
+        pVB->m_Data[offset + 1] = pVertex->m_Y;
+        pVB->m_Data[offset + 2] = pVertex->m_Z;
+    }
+
+    offset += 3;
+
+    // vertex has a normal?
+    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_Normals)
+    {
+        // source normal exists?
+        if (!pNormal)
+        {
+            // cannot add a nonexistent normal, fill with empty data in this case
+            pVB->m_Data[offset]     = 0.0f;
+            pVB->m_Data[offset + 1] = 0.0f;
+            pVB->m_Data[offset + 2] = 0.0f;
+        }
+        else
+        {
+            // copy normal from source
+            pVB->m_Data[offset]     = pNormal->m_X;
+            pVB->m_Data[offset + 1] = pNormal->m_Y;
+            pVB->m_Data[offset + 2] = pNormal->m_Z;
+        }
+
+        offset += 3;
+    }
+
+    // vertex has UV texture coordinates?
+    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_TexCoords)
+    {
+        // source texture coordinates exists?
+        if (!pUV)
+        {
+            // cannot add nonexistent texture coordinates, fill with empty data in this case
+            pVB->m_Data[offset] = 0.0f;
+            pVB->m_Data[offset + 1] = 0.0f;
+        }
+        else
+        {
+            // copy texture coordinates from source
+            pVB->m_Data[offset] = pUV->m_X;
+            pVB->m_Data[offset + 1] = pUV->m_Y;
+        }
+
+        offset += 2;
+    }
+
+    // vertex has color?
+    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_Colors)
+    {
+        ColorF color;
+
+        // get the vertex color
+        if (fOnGetVertexColor)
+            color = fOnGetVertexColor(pVB, pNormal, groupIndex);
+        else
+            color = pVB->m_Material.m_Color;
+
+        // set color data
+        pVB->m_Data[offset]     = color.m_R;
+        pVB->m_Data[offset + 1] = color.m_G;
+        pVB->m_Data[offset + 2] = color.m_B;
+        pVB->m_Data[offset + 3] = color.m_A;
+    }
+
+    return true;
 }
 //---------------------------------------------------------------------------

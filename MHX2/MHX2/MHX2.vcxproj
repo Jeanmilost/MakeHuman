@@ -72,23 +72,23 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\Third-party\glew\include;json;$(IncludePath)</IncludePath>
-    <LibraryPath>..\..\Third-party\glew\lib\Release\Win32;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\Third-party\glew\include;..\..\Third-party\libpng\include;json;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\Third-party\glew\lib\Release\Win32;..\..\Third-party\libpng\lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\Third-party\glew\include;json;$(IncludePath)</IncludePath>
-    <LibraryPath>..\..\Third-party\glew\lib\Release\Win32;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\Third-party\glew\include;..\..\Third-party\libpng\include;json;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\Third-party\glew\lib\Release\Win32;..\..\Third-party\libpng\lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\Third-party\glew\include;json;$(IncludePath)</IncludePath>
-    <LibraryPath>..\..\Third-party\glew\lib\Release\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\Third-party\glew\include;..\..\Third-party\libpng\include;json;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\Third-party\glew\lib\Release\x64;..\..\Third-party\libpng\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\Third-party\glew\include;json;$(IncludePath)</IncludePath>
-    <LibraryPath>..\..\Third-party\glew\lib\Release\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\Third-party\glew\include;..\..\Third-party\libpng\include;json;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\Third-party\glew\lib\Release\x64;..\..\Third-party\libpng\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -100,7 +100,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;glew32s.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;libpng16.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -118,7 +118,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;glew32s.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;libpng16.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -132,7 +132,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;glew32s.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;libpng16.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -150,7 +150,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;glew32s.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;libpng16.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -161,16 +161,16 @@
     <ClInclude Include="json\json.h" />
     <ClInclude Include="MHX2.h" />
     <ClInclude Include="Matrix4x4.h" />
-    <ClInclude Include="MHX2Reader.h" />
-    <ClInclude Include="MHX2Renderer.h" />
+    <ClInclude Include="MHX2Model.h" />
+    <ClInclude Include="PngTextureHelper.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Renderer_OpenGL.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Shader_OpenGL.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Texture_OpenGL.h" />
+    <ClInclude Include="Vector2.h" />
     <ClInclude Include="Vector3.h" />
-    <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Vertex.h" />
   </ItemGroup>
@@ -180,18 +180,18 @@
     <ClCompile Include="json\json.cpp" />
     <ClCompile Include="MHX2.cpp" />
     <ClCompile Include="Matrix4x4.cpp" />
-    <ClCompile Include="MHX2Reader.cpp" />
-    <ClCompile Include="MHX2Renderer.cpp" />
+    <ClCompile Include="MHX2Model.cpp" />
+    <ClCompile Include="PngTextureHelper.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Renderer_OpenGL.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Shader_OpenGL.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Texture_OpenGL.cpp" />
+    <ClCompile Include="Vector2.cpp" />
     <ClCompile Include="Vector3.cpp" />
     <ClCompile Include="Vertex.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

@@ -1,7 +1,7 @@
 /****************************************************************************
- * ==> MHX2Reader ----------------------------------------------------------*
+ * ==> MHX2Model -----------------------------------------------------------*
  ****************************************************************************
- * Description : MakeHuman .mhx2 file reader                                *
+ * Description : MakeHuman .mhx2 model                                      *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
  * MIT License - mhx2 reader                                                *
@@ -38,21 +38,154 @@
 
 // classes
 #include "Color.h"
+#include "Vector2.h"
 #include "Vector3.h"
 #include "Matrix4x4.h"
+#include "Vertex.h"
 
 /**
 * MakeHuman .mhx2 file reader
 *@author Jean-Milost Reymond
 */
-class MHX2Reader
+class MHX2Model
 {
     public:
+        struct IBone
+        {
+            typedef std::vector<IBone*> IBones;
+
+            std::string m_Name;
+            IBone*      m_pParent;
+            IBones      m_Children;
+            Vector3F    m_Head;
+            Vector3F    m_Tail;
+            float       m_Roll;
+            Matrix4x4F  m_Matrix;
+
+            IBone();
+            virtual ~IBone();
+        };
+
+        struct ISkeleton
+        {
+            std::string m_Name;
+            Vector3F    m_Offset;
+            float       m_Scale;
+            IBone*      m_pRoot;
+
+            ISkeleton();
+            virtual ~ISkeleton();
+        };
+
+        struct IModel
+        {
+            typedef std::vector<Mesh*> IMeshes;
+
+            ISkeleton* m_pSkeleton;
+            IMeshes    m_Meshes;
+
+            IModel();
+            virtual ~IModel();
+        };
+
+        /**
+        * Called when a vertex color should be get
+        *@param pVB - vertex buffer that will contain the vertex for which the color should be get
+        *@param pNormal - vertex normal
+        *@param groupIndex - the vertex group index (e.g. the inner and outer vertices of a ring)
+        *@return RGBA color to apply to the vertex
+        *@note This callback will be called only if the per-vertex color option is activated in the vertex
+        *      buffer
+        */
+        typedef ColorF(*ITfOnGetVertexColor)(const VertexBuffer* pVB, const Vector3F* pNormal, std::size_t groupIndex);
+
+        /**
+        * Called when a texture should be loaded
+        *@param textureName - texture name to load
+        *@return the loaded texture
+        *@note The loaded texture will be deleted internally, and should no longer be deleted from outside
+        */
+        typedef Texture* (*ITfOnLoadTexture)(const std::string& textureName);
+
+        MHX2Model();
+        virtual ~MHX2Model();
+
+        /**
+        * Opens a .mhx2 file
+        *@param fileName - mhx2 file to open
+        *@return true on success, otherwise false
+        */
+        virtual bool Open(const std::string& fileName);
+
+        /**
+        * Reads a mhx2 data
+        *@param data - mhx2 data to open
+        *@return true on success, otherwise false
+        */
+        virtual bool Read(const std::string& data);
+
+        /**
+        * Get the model
+        *@return the model
+        */
+        virtual IModel* GetModel() const;
+
+        /**
+        * Changes the vertex format template
+        *@param vertFormatTemplate - new vertex format template
+        */
+        virtual void SetVertFormatTemplate(const VertexFormat& vertFormatTemplate);
+
+        /**
+        * Changes the vertex culling template
+        *@param vertCullingTemplate - new vertex culling template
+        */
+        virtual void SetVertCullingTemplate(const VertexCulling& vertCullingTemplate);
+
+        /**
+        * Changes the material template
+        *@param materialTemplate - new material template
+        */
+        virtual void SetMaterial(const Material& materialTemplate);
+
+        /**
+        * Sets the OnGetVertexColor callback
+        *@param fOnGetVertexColor - callback function handle
+        */
+        void Set_OnGetVertexColor(ITfOnGetVertexColor fOnGetVertexColor);
+
+        /**
+        * Sets the OnLoadTexture callback
+        *@param fOnLoadTexture - callback function handle
+        */
+        void Set_OnLoadTexture(ITfOnLoadTexture fOnLoadTexture);
+
+    private:
+        /**
+        * Item type
+        */
+        enum IEType
+        {
+            IE_T_Unknown = 0,
+            IE_T_Model,
+            IE_T_License,
+            IE_T_Skeleton,
+            IE_T_Bones,
+            IE_T_Matrix,
+            IE_T_Materials,
+            IE_T_Geometries,
+            IE_T_Mesh,
+            IE_T_SeedMesh,
+            IE_T_ProxySeedMesh,
+            IE_T_Proxy,
+            IE_T_Weights,
+        };
+
         typedef std::vector<bool>        IBoolValues;
         typedef std::vector<std::size_t> IIntValues;
         typedef std::vector<float>       IFloatValues;
         typedef std::vector<std::string> IStringValues;
-        typedef std::vector<Vector3F*>   IVertices;
+        typedef std::vector<Vector3F*>   IVerticeItems;
 
         /**
         * Logger
@@ -147,7 +280,7 @@ class MHX2Reader
         /**
         * Bone
         */
-        struct IBone : public IItem
+        struct IBoneItem : public IItem
         {
             std::string m_Name;
             std::string m_Parent;
@@ -156,8 +289,8 @@ class MHX2Reader
             float       m_Roll;
             Matrix4x4F  m_Matrix;
 
-            IBone();
-            virtual ~IBone();
+            IBoneItem();
+            virtual ~IBoneItem();
 
             /**
             * Parses the bone data from a json object
@@ -168,20 +301,20 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IBone*> IBones;
+        typedef std::vector<IBoneItem*> IBoneItems;
 
         /**
         * Skeleton
         */
-        struct ISkeleton : public IItem
+        struct ISkeletonItem : public IItem
         {
             std::string m_Name;
             Vector3F    m_Offset;
             float       m_Scale;
-            IBones      m_Bones;
+            IBoneItems  m_Bones;
 
-            ISkeleton();
-            virtual ~ISkeleton();
+            ISkeletonItem();
+            virtual ~ISkeletonItem();
 
             /**
             * Parses the skeleton data from a json object
@@ -195,7 +328,7 @@ class MHX2Reader
         /**
         * Material
         */
-        struct IMaterial : public IItem
+        struct IMaterialItem : public IItem
         {
             std::string m_Name;
             std::string m_DiffuseTexture;
@@ -223,8 +356,8 @@ class MHX2Reader
             bool        m_ReceiveShadows;
             bool        m_SssEnabled;
 
-            IMaterial();
-            virtual ~IMaterial();
+            IMaterialItem();
+            virtual ~IMaterialItem();
 
             /**
             * Parses the material data from a json object
@@ -235,19 +368,19 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IMaterial*> IMaterials;
+        typedef std::vector<IMaterialItem*> IMaterialItems;
 
         /**
         * License
         */
-        struct ILicense : public IItem
+        struct ILicenseItem : public IItem
         {
             std::string m_Author;
             std::string m_License;
             std::string m_Homepage;
 
-            ILicense();
-            virtual ~ILicense();
+            ILicenseItem();
+            virtual ~ILicenseItem();
 
             /**
             * Parses the license data from a json object
@@ -261,12 +394,12 @@ class MHX2Reader
         /**
         * Face
         */
-        struct IFace : public IItem
+        struct IFaceItem : public IItem
         {
             IIntValues m_Values;
 
-            IFace();
-            virtual ~IFace();
+            IFaceItem();
+            virtual ~IFaceItem();
 
             /**
             * Parses the license data from a json object
@@ -277,19 +410,18 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IFace*> IFaces;
+        typedef std::vector<IFaceItem*> IFaceItems;
 
         /**
         * UV coord
         */
-        struct IUVCoord : public IItem
+        struct IUVCoordItem : public IItem
         {
-            float       m_X;
-            float       m_Y;
+            Vector2F    m_Value;
             std::size_t m_InternalIndex;
 
-            IUVCoord();
-            virtual ~IUVCoord();
+            IUVCoordItem();
+            virtual ~IUVCoordItem();
 
             /**
             * Parses the license data from a json object
@@ -300,19 +432,19 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IUVCoord*> IUVCoords;
+        typedef std::vector<IUVCoordItem*> IUVCoordItems;
 
         /**
         * Weight
         */
-        struct IWeight : public IItem
+        struct IWeightItem : public IItem
         {
             std::size_t m_Index;
             std::size_t m_InternalIndex;
             float       m_Value;
 
-            IWeight();
-            virtual ~IWeight();
+            IWeightItem();
+            virtual ~IWeightItem();
 
             /**
             * Parses the license data from a json object
@@ -323,18 +455,18 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IWeight*> IWeights;
+        typedef std::vector<IWeightItem*> IWeightItems;
 
         /**
         * Weight group
         */
-        struct IWeightGroup : public IItem
+        struct IWeightGroupItem : public IItem
         {
-            std::string m_Key;
-            IWeights    m_Weights;
+            std::string  m_Key;
+            IWeightItems m_Weights;
 
-            IWeightGroup();
-            virtual ~IWeightGroup();
+            IWeightGroupItem();
+            virtual ~IWeightGroupItem();
 
             /**
             * Parses the license data from a json object
@@ -345,17 +477,17 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IWeightGroup*> IWeightGroups;
+        typedef std::vector<IWeightGroupItem*> IWeightGroupItems;
 
         /**
         * Fit
         */
-        struct IFit : public IItem
+        struct IFitItem : public IItem
         {
-            IVertices m_Values;
+            IVerticeItems m_Values;
 
-            IFit();
-            virtual ~IFit();
+            IFitItem();
+            virtual ~IFitItem();
 
             /**
             * Parses the license data from a json object
@@ -366,21 +498,21 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IFit*> IFitting;
+        typedef std::vector<IFitItem*> IFitItems;
 
         /**
         * Mesh
         */
-        struct IMesh : public IItem
+        struct IMeshItem : public IItem
         {
-            IVertices     m_Vertices;
-            IFaces        m_Faces;
-            IUVCoords     m_UVCoords;
-            IFaces        m_UVFaces;
-            IWeightGroups m_WeightGroups;
+            IVerticeItems     m_Vertices;
+            IFaceItems        m_Faces;
+            IUVCoordItems     m_UVCoords;
+            IFaceItems        m_UVFaces;
+            IWeightGroupItems m_WeightGroups;
 
-            IMesh();
-            virtual ~IMesh();
+            IMeshItem();
+            virtual ~IMeshItem();
 
             /**
             * Parses the license data from a json object
@@ -394,20 +526,20 @@ class MHX2Reader
         /**
         * Proxy
         */
-        struct IProxy : public IItem
+        struct IProxyItem : public IItem
         {
-            ILicense      m_License;
+            ILicenseItem  m_License;
             std::string   m_Name;
             std::string   m_Type;
             std::string   m_Uuid;
             std::string   m_Basemesh;
             IStringValues m_Tags;
             IBoolValues   m_DeleteVerts;
-            IFitting      m_Fitting;
+            IFitItems     m_Fitting;
             void*         m_pVertexBoneWeights;
 
-            IProxy();
-            virtual ~IProxy();
+            IProxyItem();
+            virtual ~IProxyItem();
 
             /**
             * Parses the license data from a json object
@@ -421,23 +553,23 @@ class MHX2Reader
         /**
         * Geometry
         */
-        struct IGeometry : public IItem
+        struct IGeometryItem : public IItem
         {
-            std::string m_Name;
-            std::string m_Uuid;
-            std::string m_Material;
-            ILicense    m_License;
-            IMesh       m_Mesh;
-            IMesh       m_SeedMesh;
-            IMesh       m_ProxySeedMesh;
-            IProxy      m_Proxy;
-            Vector3F    m_Offset;
-            float       m_Scale;
-            bool        m_IsHuman;
-            bool        m_IsSubdivided;
+            std::string  m_Name;
+            std::string  m_Uuid;
+            std::string  m_Material;
+            ILicenseItem m_License;
+            IMeshItem    m_Mesh;
+            IMeshItem    m_SeedMesh;
+            IMeshItem    m_ProxySeedMesh;
+            IProxyItem   m_Proxy;
+            Vector3F     m_Offset;
+            float        m_Scale;
+            bool         m_IsHuman;
+            bool         m_IsSubdivided;
 
-            IGeometry();
-            virtual ~IGeometry();
+            IGeometryItem();
+            virtual ~IGeometryItem();
 
             /**
             * Parses the license data from a json object
@@ -448,20 +580,20 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IGeometry*> IGeometries;
+        typedef std::vector<IGeometryItem*> IGeometryItems;
 
         /**
         * Model
         */
-        struct IModel : public IItem
+        struct IModelItem : public IItem
         {
-            std::string m_Version;
-            ISkeleton   m_Skeleton;
-            IMaterials  m_Materials;
-            IGeometries m_Geometries;
+            std::string    m_Version;
+            ISkeletonItem  m_Skeleton;
+            IMaterialItems m_Materials;
+            IGeometryItems m_Geometries;
 
-            IModel();
-            virtual ~IModel();
+            IModelItem();
+            virtual ~IModelItem();
 
             /**
             * Parses the model data from a json object
@@ -472,53 +604,45 @@ class MHX2Reader
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        MHX2Reader();
-        virtual ~MHX2Reader();
+        IModel*             m_pModel;
+        VertexFormat        m_VertFormatTemplate;
+        VertexCulling       m_VertCullingTemplate;
+        Material            m_MaterialTemplate;
+        ILogger             m_Logger;
+        bool                m_MeshOnly;
+        bool                m_PoseOnly;
+        ITfOnGetVertexColor m_fOnGetVertexColor;
+        ITfOnLoadTexture    m_fOnLoadTexture;
+
+        bool BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSkeleton);
+
+        IBone* GetBone(const std::string& name, IBone* pBone) const;
+
+        bool BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, IModel* pModel);
 
         /**
-        * Opens a .mhx2 file
-        *@param fileName - mhx2 file to open
+        * Adds a vertex to a vertex buffer
+        *@param pVertex - vertex
+        *@param pNormal - normal
+        *@param pUV - texture coordinate
+        *@param groupIndex - the vertex group index (e.g. the inner and outer vertices of a ring)
+        *@param fOnGetVertexColor - get vertex color callback function to use, nullptr if not used
+        *@param pVB - vertex buffer to add to
         *@return true on success, otherwise false
         */
-        virtual bool Open(const std::string& fileName);
-
-        /**
-        * Reads a mhx2 data
-        *@param data - mhx2 data to open
-        *@return true on success, otherwise false
-        */
-        virtual bool Read(const std::string& data);
-
-    private:
-        /**
-        * Item type
-        */
-        enum IEType
-        {
-            IE_T_Unknown = 0,
-            IE_T_Model,
-            IE_T_License,
-            IE_T_Skeleton,
-            IE_T_Bones,
-            IE_T_Matrix,
-            IE_T_Materials,
-            IE_T_Geometries,
-            IE_T_Mesh,
-            IE_T_SeedMesh,
-            IE_T_ProxySeedMesh,
-            IE_T_Proxy,
-            IE_T_Weights,
-        };
-
-        IModel* m_pModel;
-        ILogger m_Logger;
+        bool VertexBufferAdd(const Vector3F*           pVertex,
+                             const Vector3F*           pNormal,
+                             const Vector2F*           pUV,
+                                   std::size_t         groupIndex,
+                             const ITfOnGetVertexColor fOnGetVertexColor,
+                                   VertexBuffer*       pVB) const;
 };
 
 //---------------------------------------------------------------------------
 // MHX2Reader
 //---------------------------------------------------------------------------
 template <class T>
-void MHX2Reader::ILogger::Log(const std::string& message, T value)
+void MHX2Model::ILogger::Log(const std::string& message, T value)
 {
     // log the message
     std::ostringstream sstr;
@@ -528,7 +652,7 @@ void MHX2Reader::ILogger::Log(const std::string& message, T value)
 }
 //---------------------------------------------------------------------------
 template <class T>
-void MHX2Reader::ILogger::Log(json_value* pJson, const std::string& message, T value)
+void MHX2Model::ILogger::Log(json_value* pJson, const std::string& message, T value)
 {
     std::ostringstream sstr;
 

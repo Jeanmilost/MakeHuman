@@ -32,11 +32,29 @@
 #include <vector>
 #include <string>
 
+// classes
+#include "Color.h"
+#include "Texture.h"
+
 /**
-* Vertex descriptor, contains global enumeration and types
-*@author Jean-Milost Reymond
+* Material, describes the way a mesh reacts to its environment
 */
-class Vertex
+class Material
+{
+    public:
+        Texture* m_pTexture;    // texture to apply to vertex buffer
+        ColorF   m_Color;       // vertex color, applied to all vertices if per-vertex color is disabled
+        bool     m_Transparent; // whether or not the alpha blending should be activated
+        bool     m_Wireframe;   // whether or not the vertex buffer should be drawn in wireframe
+
+        Material();
+        virtual ~Material();
+};
+
+/**
+* Vertex format
+*/
+class VertexFormat
 {
     public:
         /**
@@ -59,56 +77,99 @@ class Vertex
         enum IEFormat
         {
             IE_VF_None      = 0x00,
-            IE_VF_Normals   = 0x01,
-            IE_VF_TexCoords = 0x02,
-            IE_VF_Colors    = 0x04,
+            IE_VF_Normals   = 0x01, // each vertex contains a normal
+            IE_VF_TexCoords = 0x02, // each vertex contains an UV texture coordinate
+            IE_VF_Colors    = 0x04  // each vertex contains its own color
         };
 
-        /**
-        * Vertex coordinate type
-        */
-        enum IECoordType
-        {
-            IE_VC_Unknown = 0,
-            IE_VC_XY,
-            IE_VC_XYZ,
-        };
+        std::size_t  m_Stride; // vertex stride (i.e. length between each vertex) in bytes
+        IEType       m_Type;   // vertex type (i.e. how vertex is organized: triangle list, triangle fan, ...)
+        IEFormat     m_Format; // vertex format (i.e. what data vertex contains: position, normal, texture, ...)
 
-        typedef std::vector<float> IBuffer;
-
-        std::string  m_Name;
-        std::size_t  m_Stride;    // vertex stride (i.e. length between each vertex) in bytes
-        IEType       m_Type;      // vertex type (i.e. how vertex is organized: triangle list, triangle fan, ...)
-        IEFormat     m_Format;    // vertex format (i.e. what data vertex contains: position, normal, texture, ...)
-        IECoordType  m_CoordType; // vertex coordinate type (i.e. 2D coordinates, 3D coordinates, ...)
-        IBuffer      m_Buffer;    // vertex buffer
-
-        Vertex();
-        virtual ~Vertex();
+        VertexFormat();
+        virtual ~VertexFormat();
 
         /**
-        * Clones vertex in such manner that vertex info are copied, but not vertex buffer
-        *@return cloned vertex
-        *@note Cloned vertex should be deleted when useless
+        * Calculates the vertex stride
         */
-        virtual Vertex* Clone() const;
-
-        /**
-        * Calculates vertex stride
-        *@return vertex stride
-        */
-        virtual std::size_t CalculateStride() const;
+        virtual void CalculateStride();
 
         /**
         * Compares vertex and determine if their format are equivalent
         *@param other - other vertex to compare with
         *@return true if both vertex header are equivalent, otherwise false
         */
-        virtual bool CompareFormat(const Vertex& other) const;
+        virtual bool CompareFormat(const VertexFormat& other) const;
 };
 
 /**
-* Mesh, it's a set of vertex buffers representing a model
+* Vertex culling
+*/
+class VertexCulling
+{
+    public:
+        /**
+        * Culling type
+        */
+        enum IECullingType
+        {
+            IE_CT_None,
+            IE_CT_Front,
+            IE_CT_Back,
+            IE_CT_Both
+        };
+
+        /**
+        * Culling face
+        */
+        enum IECullingFace
+        {
+            IE_CF_CW,
+            IE_CF_CCW
+        };
+
+        IECullingType m_Type;
+        IECullingFace m_Face;
+
+        VertexCulling();
+        virtual ~VertexCulling();
+};
+
+/**
+* Vertex descriptor, contains global enumeration and types
 *@author Jean-Milost Reymond
 */
-typedef std::vector<Vertex*> Mesh;
+class VertexBuffer
+{
+    public:
+        typedef std::vector<float> IData;
+
+        std::string   m_Name;
+        VertexFormat  m_Format;
+        VertexCulling m_Culling;
+        Material      m_Material;
+        IData         m_Data;
+
+        VertexBuffer();
+        virtual ~VertexBuffer();
+
+        /**
+        * Clones vertex in such manner that vertex info are copied, but not vertex buffer
+        *@param includeData - if true, vertex buffer data will also be cloned
+        *@return cloned vertex
+        *@note Cloned vertex should be deleted when useless
+        */
+        virtual VertexBuffer* Clone(bool includeData = false) const;
+};
+
+/**
+* Mesh
+*/
+class Mesh
+{
+    public:
+        std::vector<VertexBuffer*> m_VB;
+
+        Mesh();
+        virtual ~Mesh();
+};

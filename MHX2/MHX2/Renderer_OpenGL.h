@@ -1,10 +1,10 @@
 /****************************************************************************
- * ==> Renderer_OpenGL --------------------------------------------------*
+ * ==> Renderer_OpenGL -----------------------------------------------------*
  ****************************************************************************
  * Description : Renderer using OpenGL for drawing                          *
  * Developer   : Jean-Milost Reymond                                        *
  ****************************************************************************
- * MIT License - QR Engine                                                  *
+ * MIT License - mhx2 reader                                                *
  *                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a  *
  * copy of this software and associated documentation files (the            *
@@ -143,24 +143,19 @@ class Renderer_OpenGL : public Renderer
         * Draws a mesh using OpenGL and shader
         *@param mesh - mesh to draw
         *@param modelMatrix - model matrix to apply to mesh
-        *@param textures - model textures
         *@param pShader - shader that will be used to draw the model
         *@return true on success, otherwise false
         */
-        virtual bool Draw(const Mesh&          mesh,
-                          const Matrix4x4F&    modelMatrix,
-                          const ModelTextures& textures,
-                          const Shader*        pShader) const;
+        virtual bool Draw(const Mesh&       mesh,
+                          const Matrix4x4F& modelMatrix,
+                          const Shader*     pShader) const;
 
         /**
         * Selects texture to draw
         *@param pShader - shader that will draw the texture
-        *@param textures - model texture list
-        *@param modelName - model name to draw (should match with a texture name in the list)
+        *@param pTexture - the texture to select
         */
-        virtual void SelectTexture(const Shader*        pShader,
-                                   const ModelTextures& textures,
-                                   const std::string&   modelName) const;
+        virtual void SelectTexture(const Shader* pShader, const Texture* pTexture) const;
 
         /**
         * Gets shader uniform hnadle
@@ -182,38 +177,3 @@ class Renderer_OpenGL : public Renderer
         HDC   m_hDC;
         HGLRC m_hRC;
 };
-
-//---------------------------------------------------------------------------
-// Renderer_OpenGL
-//---------------------------------------------------------------------------
-#if defined(OS_WIN)
-template <class T>
-QR_Vector3D<T> Renderer_OpenGL::MousePosToViewportPos(HWND hWnd, const QR_Rect<T>& viewRect)
-{
-    // no window or control?
-    if (!hWnd)
-        return QR_Vector3DP();
-
-    ::POINT p;
-
-    // get mouse position
-    ::GetCursorPos(&p);
-
-    // convert to window or control client coordinates
-    if (!::ScreenToClient(hWnd, &p))
-        return QR_Vector3DP();
-
-    ::RECT clientRect;
-
-    // get window or control client rect
-    ::GetClientRect(hWnd, &clientRect);
-
-    return Renderer::MousePosToViewportPos(QR_Point<int>(p.x, p.y),
-                                              QR_Rect<int>(clientRect.left,
-                                                           clientRect.top,
-                                                           clientRect.right,
-                                                           clientRect.bottom),
-                                              viewRect);
-}
-#endif
-//---------------------------------------------------------------------------

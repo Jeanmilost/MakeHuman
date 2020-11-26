@@ -32,12 +32,13 @@
 #include <memory>
 
 //------------------------------------------------------------------------------
-bool PngTextureHelper::OpenBitmapData(const std::string& fileName,
-                                            std::size_t& width,
-                                            std::size_t& height,
-                                            std::size_t& format,
-                                            std::size_t& length,
-                                            void*&       pPixels)
+bool PngTextureHelper::OpenImage(const std::string& fileName,
+                                       bool         is32bit,
+                                       std::size_t& width,
+                                       std::size_t& height,
+                                       std::size_t& format,
+                                       std::size_t& length,
+                                       void*&       pPixels)
 {
     // no file name?
     if (fileName.empty())
@@ -51,13 +52,13 @@ bool PngTextureHelper::OpenBitmapData(const std::string& fileName,
     if (png_image_begin_read_from_file(&image, fileName.c_str()) != 0)
     {
         // set a simple sRGB format with a non-associated alpha channel as png file format to read
-        image.format = PNG_FORMAT_BGR;
+        image.format = is32bit ? PNG_FORMAT_RGBA : PNG_FORMAT_RGB;
 
         // allocate enough memory to hold the image in this format
         png_bytep pBuffer = (png_bytep)std::malloc(PNG_IMAGE_SIZE(image));
 
         if (pBuffer && png_image_finish_read(&image, NULL, pBuffer, 0, NULL) != 0)
-            return LoadBitmapData(image, pBuffer, width, height, format, length, pPixels);
+            return LoadImage(image, pBuffer, is32bit, width, height, format, length, pPixels);
         else
         if (!pBuffer)
             png_image_free(&image);
@@ -68,48 +69,41 @@ bool PngTextureHelper::OpenBitmapData(const std::string& fileName,
     return false;
 }
 //------------------------------------------------------------------------------
-bool PngTextureHelper::LoadBitmapData(const png_image&   image,
-                                      const png_bytep    pBuffer,
-                                            std::size_t& width,
-                                            std::size_t& height,
-                                            std::size_t& format,
-                                            std::size_t& length,
-                                            void*&       pPixels)
+bool PngTextureHelper::LoadImage(const png_image&   image,
+                                 const png_bytep    pBuffer,
+                                       bool         is32bit,
+                                       std::size_t& width,
+                                       std::size_t& height,
+                                       std::size_t& format,
+                                       std::size_t& length,
+                                       void*&       pPixels)
 {
     width   = image.width;
     height  = image.height;
-    format  = 24;// image.format * 8;
+    format  = is32bit ? 32 : 24;
     length  = PNG_IMAGE_SIZE(image);
     pPixels = NULL;
 
-    unsigned char* pBitmapData = NULL;
+    unsigned char* pPixelArray = new unsigned char[length];
 
     try
     {
-        const unsigned bytesPerRow = ((width * 3 + 3) / 4) * 4 - (width * 3 % 4);
-        const unsigned bitmapSize = bytesPerRow * height;
-
-        pBitmapData = new unsigned char[bitmapSize];
-
-        // read bitmap data
-        std::memcpy(pBitmapData, pBuffer, bitmapSize);
-
         // search for bitmap format
         switch (format)
         {
             case 24:
             {
-                // calculate pixels array length
-                length = (width * height * 3);
-
-                unsigned char* pPixelArray = new unsigned char[length];
-
-                // get bitmap data in right format
                 for (unsigned y = 0; y < height; ++y)
-                    for (unsigned x = 0; x < width; ++x)
-                        for (unsigned char c = 0; c < 3; ++c)
-                            pPixelArray[3 * (width * y + x) + c] =
-                                    pBitmapData[(bytesPerRow * ((height - 1) - y)) + (3 * x) + (2 - c)];
+                    std::memcpy(&pPixelArray[y * (width * 3)], &pBuffer[((height - 1) - y) * (width * 3)], width * 3);
+
+                pPixels = pPixelArray;
+                break;
+            }
+
+            case 32:
+            {
+                for (unsigned y = 0; y < height; ++y)
+                    std::memcpy(&pPixelArray[y * (width * 4)], &pBuffer[((height - 1) - y) * (width * 4)], width * 4);
 
                 pPixels = pPixelArray;
                 break;
@@ -122,13 +116,8 @@ bool PngTextureHelper::LoadBitmapData(const png_image&   image,
     {
         // clear memory
         delete[](unsigned char*)pPixels;
-        delete[] pBitmapData;
-
         throw;
     }
-
-    // clear memory
-    delete[] pBitmapData;
 
     return true;
 }

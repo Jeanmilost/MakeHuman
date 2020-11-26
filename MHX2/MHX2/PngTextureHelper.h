@@ -40,8 +40,9 @@ class PngTextureHelper
         void Open();
 
         /**
-        * Loads image from file and convert to pixel array
+        * Opens image from file and convert to pixel array
         *@param fileName - bitmap file name to load
+        *@param is32bit - if true, the image should be opened in 32 bit BGRA format
         *@param[out] width - bitmap width, in pixels
         *@param[out] height - bitmap height, in pixels
         *@param[out] format - bitmap format (i.e. byte per pixels)
@@ -50,17 +51,19 @@ class PngTextureHelper
         *@return true on success, otherwise false
         *@note Pixel array must be deleted when useless
         */
-        static bool OpenBitmapData(const std::string& fileName,
-                                         std::size_t& width,
-                                         std::size_t& height,
-                                         std::size_t& format,
-                                         std::size_t& length,
-                                         void*&       pPixels);
+        static bool OpenImage(const std::string& fileName,
+                                    bool         is32bit,
+                                    std::size_t& width,
+                                    std::size_t& height,
+                                    std::size_t& format,
+                                    std::size_t& length,
+                                    void*&       pPixels);
 
         /**
         * Loads image from buffer and convert to pixel array
         *@param image - source png image
         *@param pBuffer - buffer containing bitmap data to load
+        *@param is32bit - if true, the image should be opened in 32 bit BGRA format
         *@param[out] width - bitmap width, in pixels
         *@param[out] height - bitmap height, in pixels
         *@param[out] format - bitmap format (i.e. byte per pixels)
@@ -69,11 +72,12 @@ class PngTextureHelper
         *@return true on success, otherwise false
         *@note Pixel array must be deleted when useless
         */
-        static bool LoadBitmapData(const png_image&   image,
-                                   const png_bytep    pBuffer,
-                                         std::size_t& width,
-                                         std::size_t& height,
-                                         std::size_t& format,
-                                         std::size_t& length,
-                                         void*&       pPixels);
+        static bool LoadImage(const png_image&   image,
+                              const png_bytep    pBuffer,
+                                    bool         is32bit,
+                                    std::size_t& width,
+                                    std::size_t& height,
+                                    std::size_t& format,
+                                    std::size_t& length,
+                                    void*&       pPixels);
 };

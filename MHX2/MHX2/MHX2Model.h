@@ -50,6 +50,9 @@
 class MHX2Model
 {
     public:
+        /**
+        * Model bone
+        */
         struct IBone
         {
             typedef std::vector<IBone*> IBones;
@@ -66,6 +69,14 @@ class MHX2Model
             virtual ~IBone();
         };
 
+        /**
+        * Model bones
+        */
+        typedef std::vector<IBone*> IBones;
+
+        /**
+        * Model skeleton
+        */
         struct ISkeleton
         {
             std::string m_Name;
@@ -77,12 +88,51 @@ class MHX2Model
             virtual ~ISkeleton();
         };
 
+        /**
+        * Model weight
+        */
+        struct IWeight
+        {
+            std::size_t m_Index;
+            std::size_t m_VertexIndex;
+            float       m_Value;
+
+            IWeight();
+            virtual ~IWeight();
+        };
+
+        /**
+        * Model weights
+        */
+        typedef std::vector<IWeight*> IWeights;
+
+        /**
+        * Model boned weights, i.e weight linked to a skeleton bone
+        */
+        struct IBonedWeights
+        {
+            IBone*   m_pBone;
+            IWeights m_Weights;
+
+            IBonedWeights();
+            virtual ~IBonedWeights();
+        };
+
+        /**
+        * Model mesh weights, i.e boned weights belonging to a mesh
+        */
+        typedef std::vector<IBonedWeights*> IMeshWeights;
+
+        /**
+        * Model
+        */
         struct IModel
         {
             typedef std::vector<Mesh*> IMeshes;
 
-            ISkeleton* m_pSkeleton;
-            IMeshes    m_Meshes;
+            ISkeleton*   m_pSkeleton;
+            IMeshes      m_Meshes;
+            IMeshWeights m_Weights;
 
             IModel();
             virtual ~IModel();
@@ -102,10 +152,11 @@ class MHX2Model
         /**
         * Called when a texture should be loaded
         *@param textureName - texture name to load
+        *@param is32bit - if true, the image should be opened in 32 bit BGRA format
         *@return the loaded texture
         *@note The loaded texture will be deleted internally, and should no longer be deleted from outside
         */
-        typedef Texture* (*ITfOnLoadTexture)(const std::string& textureName);
+        typedef Texture* (*ITfOnLoadTexture)(const std::string& textureName, bool is32bit);
 
         MHX2Model();
         virtual ~MHX2Model();
@@ -129,6 +180,14 @@ class MHX2Model
         *@return the model
         */
         virtual IModel* GetModel() const;
+
+        /**
+        * Gets the bone animation matrix
+        *@param pBone - skeleton root bone
+        *@param initialMatrix - the initial matrix
+        *@param[out] matrix - animation matrix
+        */
+        virtual void GetBoneMatrix(const IBone* pBone, const Matrix4x4F& initialMatrix, Matrix4x4F& matrix) const;
 
         /**
         * Changes the vertex format template
@@ -609,15 +668,33 @@ class MHX2Model
         VertexCulling       m_VertCullingTemplate;
         Material            m_MaterialTemplate;
         ILogger             m_Logger;
-        bool                m_MeshOnly;
         bool                m_PoseOnly;
         ITfOnGetVertexColor m_fOnGetVertexColor;
         ITfOnLoadTexture    m_fOnLoadTexture;
 
+        /**
+        * Builds the skeleton
+        *@param skeletonItem - source skeleton item readed from the file
+        *@param pSkeleton - target skeleton to build
+        *@return true on success, otherwise false
+        */
         bool BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSkeleton);
 
+        /**
+        * Gets a bone
+        *@param name - bone name to get
+        *@param pBone - parent bone to search from
+        *@return the bone matching with name, nullptr if not found or on error
+        */
         IBone* GetBone(const std::string& name, IBone* pBone) const;
 
+        /**
+        * Builds the geometry
+        *@param pModelItem - source model item readed from the file
+        *@param pGeometryItem - source geometry item readed from the file
+        *@param pModel - target model for which the geometry should be built
+        *@return true on success, otherwise false
+        */
         bool BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, IModel* pModel);
 
         /**

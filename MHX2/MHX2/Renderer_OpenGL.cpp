@@ -246,6 +246,14 @@ bool Renderer_OpenGL::Draw(const Mesh&       mesh,
                            const Matrix4x4F& modelMatrix,
                            const Shader*     pShader) const
 {
+    return Draw(mesh, modelMatrix, pShader, false);
+}
+//---------------------------------------------------------------------------
+bool Renderer_OpenGL::Draw(const Mesh&       mesh,
+                           const Matrix4x4F& modelMatrix,
+                           const Shader*     pShader,
+                                 bool        disableDepthTestOnTransparency) const
+{
     // get mesh count
     const std::size_t count = mesh.m_VB.size();
 
@@ -301,6 +309,9 @@ bool Renderer_OpenGL::Draw(const Mesh&       mesh,
             // configure the alpha blending
             if (mesh.m_VB[i]->m_Material.m_Transparent)
             {
+                if (disableDepthTestOnTransparency)
+                    glDisable(GL_DEPTH_TEST);
+
                 glEnable(GL_BLEND);
                 glBlendEquation(GL_FUNC_ADD);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

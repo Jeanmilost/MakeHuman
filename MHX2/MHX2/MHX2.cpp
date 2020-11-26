@@ -65,6 +65,9 @@ const char fragmentShader[] = "precision mediump float;"
                               "void main(void)"
                               "{"
                               "    gl_FragColor = vColor * texture2D(sTexture, vTexCoord);"
+                              ""
+                              "    if (gl_FragColor.a < 0.1)"
+                              "        discard;"
                               "}";
 //------------------------------------------------------------------------------
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -95,7 +98,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 //------------------------------------------------------------------------------
-Texture* OnLoadTexture(const std::string& textureName)
+Texture* OnLoadTexture(const std::string& textureName, bool is32bit)
 {
     std::size_t width   = 0;
     std::size_t height  = 0;
@@ -109,12 +112,13 @@ Texture* OnLoadTexture(const std::string& textureName)
         if (fileName[i] == '/')
             fileName[i] = '\\';
 
-    if (!PngTextureHelper::OpenBitmapData("Resources\\Models\\mhx2\\Sandra\\" + textureName,
-                                          width,
-                                          height,
-                                          format,
-                                          length,
-                                          pPixels))
+    if (!PngTextureHelper::OpenImage("Resources\\Models\\mhx2\\Sandra\\" + textureName,
+                                     is32bit,
+                                     width,
+                                     height,
+                                     format,
+                                     length,
+                                     pPixels))
         return nullptr;
 
     if (!pPixels)
@@ -203,7 +207,6 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     shader.Link(true);
 
     MHX2Model mhx2;
-    //REM mhx2.Set_OnGetVertexColor(OnGetVertexColor);
     mhx2.Set_OnLoadTexture(OnLoadTexture);
     mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
 
@@ -223,53 +226,14 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     Matrix4x4F viewMatrix = Matrix4x4F::Identity();
     renderer.ConnectViewMatrixToShader(&shader, viewMatrix);
 
-    /*REM
-    std::size_t width;
-    std::size_t height;
-    std::size_t format;
-    std::size_t length;
-    void*       pPixels;
-
-    PngTextureHelper pngTextureHelper;
-    pngTextureHelper.OpenBitmapData("Resources\\Models\\mhx2\\Sandra\\textures\\green_eye.png",
-                                    width,
-                                    height,
-                                    format,
-                                    length,
-                                    pPixels);
-    */
-
     ColorF bgColor;
     bgColor.m_R = 0.08f;
     bgColor.m_G = 0.12f;
     bgColor.m_B = 0.17f;
     bgColor.m_A = 1.0f;
 
-    /*
-    Matrix4x4F matrix = Matrix4x4F::Identity();
-
-    // create the rotation matrix
-    Matrix4x4F rotMat;
-    Vector3F axis;
-    axis.m_X = 1.0f;
-    axis.m_Y = 0.0f;
-    axis.m_Z = 0.0f;
-    //rotMat = matrix.Rotate(-M_PI / 2.0f, axis);
-    rotMat = matrix.Rotate(0.0f, axis);
-
-    // create the scale matrix
-    Matrix4x4F scaleMat = Matrix4x4F::Identity();
-    //scaleMat.m_Table[0][0] = 0.075f;
-    //scaleMat.m_Table[1][1] = 0.075f;
-    //scaleMat.m_Table[2][2] = 0.075f;
-
-    // place the model in the 3d world (update the matrix directly)
-    Matrix4x4F modelMatrix = rotMat.Multiply(scaleMat);
-    modelMatrix.m_Table[3][1] =  0.0f;
-    modelMatrix.m_Table[3][2] = -25.0f;
-    */
-
-    float angle = 0.0f;
+    float  angle    = 0.0f;
+    double lastTime = 0.0f;
 
     // program main loop
     while (!bQuit)
@@ -296,30 +260,28 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
             axis.m_X = 0.0f;
             axis.m_Y = 1.0f;
             axis.m_Z = 0.0f;
-            //rotMat = matrix.Rotate(-M_PI / 2.0f, axis);
             rotMat = matrix.Rotate(angle, axis);
 
             // create the scale matrix
             Matrix4x4F scaleMat = Matrix4x4F::Identity();
-            //scaleMat.m_Table[0][0] = 0.075f;
-            //scaleMat.m_Table[1][1] = 0.075f;
-            //scaleMat.m_Table[2][2] = 0.075f;
 
             // place the model in the 3d world (update the matrix directly)
             Matrix4x4F modelMatrix = rotMat.Multiply(scaleMat);
-            modelMatrix.m_Table[3][1] =  0.0f;
+            modelMatrix.m_Table[3][1] =   5.0f;
             modelMatrix.m_Table[3][2] = -25.0f;
 
             // draw the scene
             renderer.BeginScene(bgColor, (Renderer::IESceneFlags)(Renderer::IE_SF_ClearColor | Renderer::IE_SF_ClearDepth));
 
+            // draw the model meshes
             for (std::size_t i = 0; i < mhx2.GetModel()->m_Meshes.size(); ++i)
-                // draw the model mesh
                 renderer.Draw(*mhx2.GetModel()->m_Meshes[i], modelMatrix, &shader);
 
             renderer.EndScene();
 
-            angle = std::fmodf(angle + 0.01f, 2 * M_PI);
+            double elapsedTime = ::GetTickCount() - lastTime;
+            lastTime           = ::GetTickCount();
+            angle              = std::fmodf(angle + (elapsedTime * 0.001f), 2 * M_PI);
 
             Sleep(1);
         }

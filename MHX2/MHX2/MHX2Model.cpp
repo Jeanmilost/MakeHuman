@@ -57,6 +57,31 @@ MHX2Model::ISkeleton::~ISkeleton()
         delete m_pRoot;
 }
 //---------------------------------------------------------------------------
+// MHX2Model::IWeight
+//---------------------------------------------------------------------------
+MHX2Model::IWeight::IWeight() :
+    m_Index(0),
+    m_VertexIndex(0),
+    m_Value(1.0f)
+{}
+//---------------------------------------------------------------------------
+MHX2Model::IWeight::~IWeight()
+{}
+//---------------------------------------------------------------------------
+// MHX2Model::IBonedWeights
+//---------------------------------------------------------------------------
+MHX2Model::IBonedWeights::IBonedWeights() :
+    m_pBone(nullptr)
+{}
+//---------------------------------------------------------------------------
+MHX2Model::IBonedWeights::~IBonedWeights()
+{
+    const std::size_t count = m_Weights.size();
+
+    for (std::size_t i = 0; i < count; ++i)
+        delete m_Weights[i];
+}
+//---------------------------------------------------------------------------
 // MHX2Model::IModel
 //---------------------------------------------------------------------------
 MHX2Model::IModel::IModel() :
@@ -1746,8 +1771,7 @@ bool MHX2Model::IModelItem::Parse(json_value* pJson, ILogger& logger)
 //---------------------------------------------------------------------------
 MHX2Model::MHX2Model() :
     m_pModel(nullptr),
-    m_MeshOnly(false),
-    m_PoseOnly(false),
+    m_PoseOnly(true),
     m_fOnGetVertexColor(nullptr),
     m_fOnLoadTexture(nullptr)
 {
@@ -1893,6 +1917,39 @@ MHX2Model::IModel* MHX2Model::GetModel() const
     return m_pModel;
 }
 //---------------------------------------------------------------------------
+void MHX2Model::GetBoneMatrix(const IBone* pBone, const Matrix4x4F& initialMatrix, Matrix4x4F& matrix) const
+{
+    // no bone?
+    if (!pBone)
+        return;
+
+    // set the output matrix as identity
+    matrix = Matrix4x4F::Identity();
+
+    // iterate through bones
+    while (pBone)
+    {
+        // get the previously stacked matrix as base to calculate the new one
+        const Matrix4x4F localMatrix = matrix;
+
+        // stack the previously calculated matrix with the current bone one
+        matrix = localMatrix.Multiply(pBone->m_Matrix);
+
+        // go to parent bone
+        pBone = pBone->m_pParent;
+    }
+
+    // initial matrix provided?
+    if (!initialMatrix.IsIdentity())
+    {
+        // get the previously stacked matrix as base to calculate the new one
+        const Matrix4x4F localMatrix = matrix;
+
+        // stack the previously calculated matrix with the initial one
+        matrix = localMatrix.Multiply(initialMatrix);
+    }
+}
+//---------------------------------------------------------------------------
 void MHX2Model::SetVertFormatTemplate(const VertexFormat& vertFormatTemplate)
 {
     m_VertFormatTemplate = vertFormatTemplate;
@@ -2022,12 +2079,13 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
 
     const std::size_t faceCount = pGeometryItem->m_Mesh.m_Faces.size();
 
-    // load the texture
+    // can load the texture?
     if (m_fOnLoadTexture)
     {
         IMaterialItem*    pMaterial     = nullptr;
         const std::size_t materialCount = pModelItem->m_Materials.size();
 
+        // search the material matching with the mesh
         for (std::size_t i = 0; i < materialCount; ++i)
             if (pModelItem->m_Materials[i]->m_Name == pGeometryItem->m_Material)
             {
@@ -2035,42 +2093,82 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
                 break;
             }
 
+        // found a material?
         if (pMaterial)
-            pVB->m_Material.m_pTexture = m_fOnLoadTexture(pMaterial->m_DiffuseTexture);
+        {
+            // load the texture
+            pVB->m_Material.m_pTexture = m_fOnLoadTexture(pMaterial->m_DiffuseTexture, pMaterial->m_Transparent);
+
+            // set material transparency
+            pVB->m_Material.m_Transparent = pMaterial->m_Transparent;
+        }
     }
 
+    const std::size_t weightsGroupCount = pGeometryItem->m_Mesh.m_WeightGroups.size();
+
+    // create the mesh weights containers
+    if (!m_PoseOnly)
+        for (std::size_t i = 0; i < weightsGroupCount; ++i)
+        {
+            std::unique_ptr<IBonedWeights> pBonedWeights(new IBonedWeights());
+            pBonedWeights->m_pBone = GetBone(pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key, pModel->m_pSkeleton->m_pRoot);
+            pModel->m_Weights.push_back(pBonedWeights.get());
+            pBonedWeights.release();
+        }
+
+    // iterate through the faces to build
     for (std::size_t i = 0; i < faceCount; ++i)
     {
         const IFaceItem*  pFace      = pGeometryItem->m_Mesh.m_Faces[i];
         const IFaceItem*  pUVFace    = pGeometryItem->m_Mesh.m_UVFaces[i];
         const std::size_t valueCount = pFace->m_Values.size();
 
+        // iterate through the face vertices
         for (std::size_t j = 0; j < valueCount - 2; ++j)
-        {
-            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[0]],
-                           &Vector3F(),
-                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[0]]->m_Value,
-                            0,
-                            m_fOnGetVertexColor,
-                            pVB.get());
-            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[j + 1]],
-                           &Vector3F(),
-                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[j + 1]]->m_Value,
-                            0,
-                            m_fOnGetVertexColor,
-                            pVB.get());
-            VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[j + 2]],
-                           &Vector3F(),
-                           &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[j + 2]]->m_Value,
-                            0,
-                            m_fOnGetVertexColor,
-                            pVB.get());
-        }
+            for (unsigned char k = 0; k < 3; ++k)
+            {
+                const std::size_t index       = !k ? 0 : j + k;
+                const std::size_t vertexIndex = pVB->m_Data.size();
+
+                // add the vertex to the buffer
+                VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[index]],
+                               &Vector3F(),
+                               &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[index]]->m_Value,
+                                0,
+                                m_fOnGetVertexColor,
+                                pVB.get());
+
+                // do build the weights
+                if (m_PoseOnly)
+                    continue;
+
+                // iterate through the weight groups
+                for (std::size_t l = 0; l < weightsGroupCount; ++l)
+                {
+                    const std::size_t weightCount = pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights.size();
+
+                    // search if the vertex is linked to a weight
+                    for (std::size_t m = 0; m < weightCount; ++m)
+                        if (pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights[m]->m_Index == pFace->m_Values[index])
+                        {
+                            // add the weight to the mesh
+                            std::unique_ptr<IWeight> pWeight(new IWeight());
+                            pWeight->m_Index       = (vertexIndex / pVB->m_Format.m_Stride);
+                            pWeight->m_VertexIndex =  vertexIndex;
+                            pWeight->m_Value       =  pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights[m]->m_Value;
+                            pModel->m_Weights[l]->m_Weights.push_back(pWeight.get());
+                            pWeight.release();
+                            break;
+                        }
+                }
+            }
     }
 
+    // add the vertex buffer to the mesh
     pMesh->m_VB.push_back(pVB.get());
     pVB.release();
 
+    // add the mesh to the model
     pModel->m_Meshes.push_back(pMesh.get());
     pMesh.release();
 

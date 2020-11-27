@@ -14,13 +14,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="targetver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MHX2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Matrix4x4.h">

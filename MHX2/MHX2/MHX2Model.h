@@ -514,7 +514,8 @@ class MHX2Model
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        typedef std::vector<IWeightItem*> IWeightItems;
+        typedef std::vector<IWeightItem*>    IWeightItems;
+        typedef std::map<std::size_t, float> IWeightTable;
 
         /**
         * Weight group
@@ -523,6 +524,7 @@ class MHX2Model
         {
             std::string  m_Key;
             IWeightItems m_Weights;
+            IWeightTable m_Table;
 
             IWeightGroupItem();
             virtual ~IWeightGroupItem();

@@ -156,10 +156,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Color.h" />
-    <ClInclude Include="framework.h" />
     <ClInclude Include="json\block_allocator.h" />
     <ClInclude Include="json\json.h" />
-    <ClInclude Include="MHX2.h" />
     <ClInclude Include="Matrix4x4.h" />
     <ClInclude Include="MHX2Model.h" />
     <ClInclude Include="PngTextureHelper.h" />

@@ -1131,6 +1131,10 @@ bool MHX2Model::IWeightGroupItem::Parse(json_value* pJson, ILogger& logger)
                 if (!pWeight->Parse(it, logger))
                     return false;
 
+                // build the weight table. NOTE it's assumed that a weight is defined only once per bone influence group
+                m_Table[pWeight->m_Index] = pWeight->m_Value;
+
+                // add the weight to the bone influence group list
                 m_Weights.push_back(pWeight.get());
                 pWeight.release();
             }
@@ -1771,7 +1775,7 @@ bool MHX2Model::IModelItem::Parse(json_value* pJson, ILogger& logger)
 //---------------------------------------------------------------------------
 MHX2Model::MHX2Model() :
     m_pModel(nullptr),
-    m_PoseOnly(true),
+    m_PoseOnly(false),
     m_fOnGetVertexColor(nullptr),
     m_fOnLoadTexture(nullptr)
 {
@@ -2145,21 +2149,21 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
                 // iterate through the weight groups
                 for (std::size_t l = 0; l < weightsGroupCount; ++l)
                 {
-                    const std::size_t weightCount = pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights.size();
+                    // find if a weight is attributed to the vertex
+                    IWeightTable::iterator it = pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Table.find(pFace->m_Values[index]);
 
-                    // search if the vertex is linked to a weight
-                    for (std::size_t m = 0; m < weightCount; ++m)
-                        if (pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights[m]->m_Index == pFace->m_Values[index])
-                        {
-                            // add the weight to the mesh
-                            std::unique_ptr<IWeight> pWeight(new IWeight());
-                            pWeight->m_Index       = (vertexIndex / pVB->m_Format.m_Stride);
-                            pWeight->m_VertexIndex =  vertexIndex;
-                            pWeight->m_Value       =  pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Weights[m]->m_Value;
-                            pModel->m_Weights[l]->m_Weights.push_back(pWeight.get());
-                            pWeight.release();
-                            break;
-                        }
+                    // found a matching vertex weight?
+                    if (it != pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Table.end())
+                    {
+                        // create and populate the weight and add it to the matching bone group
+                        std::unique_ptr<IWeight> pWeight(new IWeight());
+                        pWeight->m_Index       = (vertexIndex / pVB->m_Format.m_Stride);
+                        pWeight->m_VertexIndex = vertexIndex;
+                        pWeight->m_Value       = it->second;
+                        pModel->m_Weights[l]->m_Weights.push_back(pWeight.get());
+                        pWeight.release();
+                        break;
+                    }
                 }
             }
     }

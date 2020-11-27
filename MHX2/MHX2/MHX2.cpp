@@ -180,6 +180,25 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
     ::ShowWindow(hWnd, nCmdShow);
 
+    // get the window client rect
+    RECT clientRect;
+    ::GetClientRect(hWnd, &clientRect);
+
+    // get the window device context
+    HDC hDC = ::GetDC(hWnd);
+
+    // please wait text background
+    HBRUSH hBrush = ::CreateSolidBrush(RGB(20, 30, 43));
+    ::FillRect(hDC, &clientRect, hBrush);
+    ::DeleteObject(hBrush);
+
+    // please wait text
+    ::SetBkMode(hDC, TRANSPARENT);
+    ::SetBkColor(hDC, 0x000000);
+    ::SetTextColor(hDC, 0xffffff);
+    ::DrawText(hDC, L"Please wait...", 14, &clientRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+    ::ReleaseDC(hWnd, hDC);
+
     Renderer_OpenGL renderer;
 
     // enable OpenGL for the window
@@ -210,13 +229,10 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     mhx2.Set_OnLoadTexture(OnLoadTexture);
     mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
 
-    RECT clientRect;
-    ::GetClientRect(hWnd, &clientRect);
-
     Matrix4x4F projMatrix;
 
     // create the viewport
-    renderer.CreateViewport(clientRect.right - clientRect.left,
+    renderer.CreateViewport(clientRect.right  - clientRect.left,
                             clientRect.bottom - clientRect.top,
                             0.1f,
                             1000.0f,
@@ -279,6 +295,7 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
             renderer.EndScene();
 
+            // calculate the elapsed time
             double elapsedTime = ::GetTickCount() - lastTime;
             lastTime           = ::GetTickCount();
             angle              = std::fmodf(angle + (elapsedTime * 0.001f), 2 * M_PI);

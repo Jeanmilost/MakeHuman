@@ -125,12 +125,12 @@ Texture* OnLoadTexture(const std::string& textureName, bool is32bit)
         return nullptr;
 
     std::unique_ptr<Texture_OpenGL> pTexture(new Texture_OpenGL());
-    pTexture->m_Width     = width;
-    pTexture->m_Height    = height;
-    pTexture->m_Format    = format == 24 ? Texture::IE_FT_24bit : Texture::IE_FT_32bit;
-    pTexture->m_WrapMode  = Texture::IE_WM_Clamp;
-    pTexture->m_MinFilter = Texture::IE_MI_Linear;
-    pTexture->m_MagFilter = Texture::IE_MA_Linear;
+    pTexture->m_Width     = (int)width;
+    pTexture->m_Height    = (int)height;
+    pTexture->m_Format    = format == 24 ? Texture::IEFormat::IE_FT_24bit : Texture::IEFormat::IE_FT_32bit;
+    pTexture->m_WrapMode  = Texture::IEWrapMode::IE_WM_Clamp;
+    pTexture->m_MinFilter = Texture::IEMinFilter::IE_MI_Linear;
+    pTexture->m_MagFilter = Texture::IEMagFilter::IE_MA_Linear;
     pTexture->Create(pPixels);
 
     return pTexture.release();
@@ -221,8 +221,8 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
 
     Shader_OpenGL shader;
     shader.CreateProgram();
-    shader.Attach(vertexShader,   Shader::IE_ST_Vertex);
-    shader.Attach(fragmentShader, Shader::IE_ST_Fragment);
+    shader.Attach(vertexShader,   Shader::IEType::IE_ST_Vertex);
+    shader.Attach(fragmentShader, Shader::IEType::IE_ST_Fragment);
     shader.Link(true);
 
     MHX2Model mhx2;
@@ -232,8 +232,8 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     Matrix4x4F projMatrix;
 
     // create the viewport
-    renderer.CreateViewport(clientRect.right  - clientRect.left,
-                            clientRect.bottom - clientRect.top,
+    renderer.CreateViewport((float)(clientRect.right  - clientRect.left),
+                            (float)(clientRect.bottom - clientRect.top),
                             0.1f,
                             1000.0f,
                             &shader,
@@ -287,7 +287,8 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
             modelMatrix.m_Table[3][2] = -25.0f;
 
             // draw the scene
-            renderer.BeginScene(bgColor, (Renderer::IESceneFlags)(Renderer::IE_SF_ClearColor | Renderer::IE_SF_ClearDepth));
+            renderer.BeginScene(bgColor, (Renderer::IESceneFlags)((unsigned)Renderer::IESceneFlags::IE_SF_ClearColor |
+                                                                  (unsigned)Renderer::IESceneFlags::IE_SF_ClearDepth));
 
             // draw the model meshes
             for (std::size_t i = 0; i < mhx2.GetModel()->m_Meshes.size(); ++i)
@@ -296,9 +297,9 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
             renderer.EndScene();
 
             // calculate the elapsed time
-            double elapsedTime = ::GetTickCount() - lastTime;
-            lastTime           = ::GetTickCount();
-            angle              = std::fmodf(angle + (elapsedTime * 0.001f), 2 * M_PI);
+            double elapsedTime = (double)::GetTickCount64() - lastTime;
+            lastTime           = (double)::GetTickCount64();
+            angle              = std::fmodf(angle + ((float)elapsedTime * 0.001f), 2.0f * (float)M_PI);
 
             Sleep(1);
         }
@@ -310,6 +311,6 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     // destroy the window explicitly
     ::DestroyWindow(hWnd);
 
-    return msg.wParam;
+    return (int)msg.wParam;
 }
 //------------------------------------------------------------------------------

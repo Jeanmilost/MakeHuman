@@ -223,7 +223,7 @@ class MHX2Model
         /**
         * Item type
         */
-        enum IEType
+        enum class IEType
         {
             IE_T_Unknown = 0,
             IE_T_Model,

@@ -939,11 +939,11 @@ bool MHX2Model::IFaceItem::Parse(json_value* pJson, ILogger& logger)
             return true;
 
         case JSON_INT:
-            m_Values.push_back(float(pJson->int_value));
+            m_Values.push_back(pJson->int_value);
             return true;
 
         case JSON_FLOAT:
-            m_Values.push_back(pJson->float_value);
+            m_Values.push_back((std::size_t)pJson->float_value);
             return true;
     }
 
@@ -1780,11 +1780,12 @@ MHX2Model::MHX2Model() :
     m_fOnLoadTexture(nullptr)
 {
     // configure the default vertex format
-    m_VertFormatTemplate.m_Format = (VertexFormat::IEFormat)(VertexFormat::IE_VF_Colors | VertexFormat::IE_VF_TexCoords);
+    m_VertFormatTemplate.m_Format = (VertexFormat::IEFormat)((unsigned)VertexFormat::IEFormat::IE_VF_Colors |
+                                                             (unsigned)VertexFormat::IEFormat::IE_VF_TexCoords);
 
     // configure the default vertex culling
-    m_VertCullingTemplate.m_Type = VertexCulling::IE_CT_Back;
-    m_VertCullingTemplate.m_Face = VertexCulling::IE_CF_CCW;
+    m_VertCullingTemplate.m_Type = VertexCulling::IECullingType::IE_CT_Back;
+    m_VertCullingTemplate.m_Face = VertexCulling::IECullingFace::IE_CF_CCW;
 
     // configure the default material
     m_MaterialTemplate.m_Color = ColorF(1.0f, 1.0f, 1.0f, 1.0f);
@@ -2076,7 +2077,7 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
     pVB->m_Material = m_MaterialTemplate;
 
     // set the vertex format type
-    pVB->m_Format.m_Type = VertexFormat::IE_VT_Triangles;
+    pVB->m_Format.m_Type = VertexFormat::IEType::IE_VT_Triangles;
 
     // calculate the stride
     pVB->m_Format.CalculateStride();
@@ -2219,7 +2220,7 @@ bool MHX2Model::VertexBufferAdd(const Vector3F*           pVertex,
     offset += 3;
 
     // vertex has a normal?
-    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_Normals)
+    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_Normals)
     {
         // source normal exists?
         if (!pNormal)
@@ -2241,7 +2242,7 @@ bool MHX2Model::VertexBufferAdd(const Vector3F*           pVertex,
     }
 
     // vertex has UV texture coordinates?
-    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_TexCoords)
+    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_TexCoords)
     {
         // source texture coordinates exists?
         if (!pUV)
@@ -2261,7 +2262,7 @@ bool MHX2Model::VertexBufferAdd(const Vector3F*           pVertex,
     }
 
     // vertex has color?
-    if (pVB->m_Format.m_Format & VertexFormat::IE_VF_Colors)
+    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_Colors)
     {
         ColorF color;
 

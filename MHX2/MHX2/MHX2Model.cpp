@@ -2134,10 +2134,11 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
             {
                 const std::size_t index       = !k ? 0 : j + k;
                 const std::size_t vertexIndex = pVB->m_Data.size();
+                const Vector3F    normal;
 
                 // add the vertex to the buffer
                 VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[index]],
-                               &Vector3F(),
+                               &normal,
                                &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[index]]->m_Value,
                                 0,
                                 m_fOnGetVertexColor,

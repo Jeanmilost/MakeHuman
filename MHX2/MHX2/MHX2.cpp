@@ -27,6 +27,7 @@
  ****************************************************************************/
 
 // classes
+#include "Model.h"
 #include "MHX2Model.h"
 #include "PngTextureHelper.h"
 #include "Texture_OpenGL.h"
@@ -41,6 +42,10 @@
 #define GLEW_STATIC
 #include <GL/glew.h>
 
+//------------------------------------------------------------------------------
+bool g_ShowSkeleton = false;
+bool g_PauseAnim    = false;
+bool g_Rotate       = true;
 //------------------------------------------------------------------------------
 const char vertexShader[] = "precision mediump float;"
                             "attribute    vec3 aVertices;"
@@ -58,6 +63,19 @@ const char vertexShader[] = "precision mediump float;"
                             "    gl_Position = uProjection * uView * uModel * vec4(aVertices, 1.0);"
                             "}";
 //------------------------------------------------------------------------------
+const char lineVertShader[] = "precision mediump float;"
+                              "attribute    vec3 aVertices;"
+                              "attribute    vec4 aColor;"
+                              "uniform      mat4 uProjection;"
+                              "uniform      mat4 uView;"
+                              "uniform      mat4 uModel;"
+                              "varying lowp vec4 vColor;"
+                              "void main(void)"
+                              "{"
+                              "    vColor      = aColor;"
+                              "    gl_Position = uProjection * uView * uModel * vec4(aVertices, 1.0);"
+                              "}";
+//------------------------------------------------------------------------------
 const char fragmentShader[] = "precision mediump float;"
                               "uniform      sampler2D sTexture;"
                               "varying lowp vec4      vColor;"
@@ -68,6 +86,13 @@ const char fragmentShader[] = "precision mediump float;"
                               ""
                               "    if (gl_FragColor.a < 0.1)"
                               "        discard;"
+                              "}";
+//------------------------------------------------------------------------------
+const char lineFragShader[] = "precision mediump float;"
+                              "varying lowp vec4 vColor;"
+                              "void main(void)"
+                              "{"
+                              "    gl_FragColor = vColor;"
                               "}";
 //------------------------------------------------------------------------------
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -84,6 +109,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_KEYDOWN:
             switch (wParam)
             {
+                case '1':
+                    g_ShowSkeleton = !g_ShowSkeleton;
+                    break;
+
+                case '2':
+                    g_Rotate = !g_Rotate;
+                    break;
+
+                case VK_SPACE:
+                    g_PauseAnim = !g_PauseAnim;
+                    break;
+
                 case VK_ESCAPE:
                     ::PostQuitMessage(0);
                     break;
@@ -134,6 +171,111 @@ Texture* OnLoadTexture(const std::string& textureName, bool is32bit)
     pTexture->Create(pPixels);
 
     return pTexture.release();
+}
+//---------------------------------------------------------------------------
+void DrawMHX2(const MHX2Model&       mhx2Model,
+              const Matrix4x4F&      modelMatrix,
+              const Shader_OpenGL*   pShader,
+              const Renderer_OpenGL* pRenderer,
+              int                    animSetIndex,
+              double                 elapsedTime)
+{
+    if (!pRenderer)
+        return;
+
+    if (!pShader)
+        return;
+
+    Model* pModel = mhx2Model.GetModel(animSetIndex, elapsedTime);
+
+    // iterate through the meshes to draw
+    for (std::size_t i = 0; i < pModel->m_Mesh.size(); ++i)
+        // draw the model mesh
+        pRenderer->Draw(*pModel->m_Mesh[i], modelMatrix, pShader);
+}
+//---------------------------------------------------------------------------
+void DrawBone(const MHX2Model&       mhx2Model,
+              const Model*           pModel,
+              const Model::IBone*    pBone,
+              const Matrix4x4F&      modelMatrix,
+              const Shader_OpenGL*   pShader,
+              const Renderer_OpenGL* pRenderer,
+              int                    animSetIndex,
+              double                 elapsedTime)
+{
+    if (!pModel)
+        return;
+
+    if (!pBone)
+        return;
+
+    if (!pRenderer)
+        return;
+
+    if (!pShader)
+        return;
+
+    for (std::size_t i = 0; i < pBone->m_Children.size(); ++i)
+    {
+        Model::IBone* pChild = pBone->m_Children[i];
+
+        Matrix4x4F topMatrix;
+
+        if (pModel->m_PoseOnly)
+            // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
+            topMatrix = pBone->m_Matrix;
+        /*
+        else
+            mhx2Model.GetBoneAnimMatrix(pBone,
+                                        pModel->m_AnimationSet[animSetIndex],
+                                        std::fmod(elapsedTime, (double)pModel->m_AnimationSet[animSetIndex]->m_MaxValue / 46186158000.0),
+                                        Matrix4x4F::Identity(),
+                                        topMatrix);
+        */
+
+        Matrix4x4F bottomMatrix;
+
+        if (pModel->m_PoseOnly)
+            // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
+            bottomMatrix = pChild->m_Matrix;
+        /*
+        else
+            mhx2Model.GetBoneAnimMatrix(pChild,
+                                        pModel->m_AnimationSet[animSetIndex],
+                                        std::fmod(elapsedTime, (double)pModel->m_AnimationSet[animSetIndex]->m_MaxValue / 46186158000.0),
+                                        Matrix4x4F::Identity(),
+                                        bottomMatrix);
+        */
+
+        glDisable(GL_DEPTH_TEST);
+        pRenderer->DrawLine(Vector3F(topMatrix.m_Table[3][0],    topMatrix.m_Table[3][1],    topMatrix.m_Table[3][2]),
+                            Vector3F(bottomMatrix.m_Table[3][0], bottomMatrix.m_Table[3][1], bottomMatrix.m_Table[3][2]),
+                            ColorF(0.25f, 0.12f, 0.1f, 1.0f),
+                            ColorF(0.95f, 0.06f, 0.15f, 1.0f),
+                            modelMatrix,
+                            pShader);
+        glEnable(GL_DEPTH_TEST);
+
+        DrawBone(mhx2Model, pModel, pChild, modelMatrix, pShader, pRenderer, animSetIndex, elapsedTime);
+    }
+}
+//---------------------------------------------------------------------------
+void DrawSkeleton(const MHX2Model&       mhx2Model,
+                  const Matrix4x4F&      modelMatrix,
+                  const Shader_OpenGL*   pShader,
+                  const Renderer_OpenGL* pRenderer,
+                  int                    animSetIndex,
+                  double                 elapsedTime)
+{
+    if (!pRenderer)
+        return;
+
+    if (!pShader)
+        return;
+
+    Model* pModel = mhx2Model.GetModel(animSetIndex, elapsedTime);
+
+    DrawBone(mhx2Model, pModel, pModel->m_pSkeleton, modelMatrix, pShader, pRenderer, animSetIndex, elapsedTime);
 }
 //------------------------------------------------------------------------------
 int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
@@ -225,7 +367,14 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
     shader.Attach(fragmentShader, Shader::IEType::IE_ST_Fragment);
     shader.Link(true);
 
+    Shader_OpenGL lineShader;
+    lineShader.CreateProgram();
+    lineShader.Attach(lineVertShader, Shader::IEType::IE_ST_Vertex);
+    lineShader.Attach(lineFragShader, Shader::IEType::IE_ST_Fragment);
+    lineShader.Link(true);
+
     MHX2Model mhx2;
+    mhx2.SetPoseOnly(true);
     mhx2.Set_OnLoadTexture(OnLoadTexture);
     mhx2.Open("Resources\\Models\\mhx2\\Sandra\\Sandra.mhx2");
 
@@ -239,8 +388,13 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
                             &shader,
                             projMatrix);
 
+    // connect the projection matrix to the line shader
+    renderer.ConnectProjectionMatrixToShader(&lineShader, projMatrix);
+
+    // connect the view matrix to the both model and line shaders
     Matrix4x4F viewMatrix = Matrix4x4F::Identity();
-    renderer.ConnectViewMatrixToShader(&shader, viewMatrix);
+    renderer.ConnectViewMatrixToShader(&shader,     viewMatrix);
+    renderer.ConnectViewMatrixToShader(&lineShader, viewMatrix);
 
     ColorF bgColor;
     bgColor.m_R = 0.08f;
@@ -276,30 +430,36 @@ int APIENTRY wWinMain(_In_     HINSTANCE hInstance,
             axis.m_X = 0.0f;
             axis.m_Y = 1.0f;
             axis.m_Z = 0.0f;
-            rotMat = matrix.Rotate(angle, axis);
+            rotMat   = matrix.Rotate(angle, axis);
 
             // create the scale matrix
             Matrix4x4F scaleMat = Matrix4x4F::Identity();
 
             // place the model in the 3d world (update the matrix directly)
-            Matrix4x4F modelMatrix = rotMat.Multiply(scaleMat);
+            Matrix4x4F modelMatrix    = rotMat.Multiply(scaleMat);
             modelMatrix.m_Table[3][1] =   5.0f;
             modelMatrix.m_Table[3][2] = -25.0f;
+
+            // calculate the elapsed time
+            double elapsedTime = (double)::GetTickCount64() - lastTime;
+                   lastTime    = (double)::GetTickCount64();
 
             // draw the scene
             renderer.BeginScene(bgColor, (Renderer::IESceneFlags)((unsigned)Renderer::IESceneFlags::IE_SF_ClearColor |
                                                                   (unsigned)Renderer::IESceneFlags::IE_SF_ClearDepth));
 
             // draw the model meshes
-            for (std::size_t i = 0; i < mhx2.GetModel()->m_Meshes.size(); ++i)
-                renderer.Draw(*mhx2.GetModel()->m_Meshes[i], modelMatrix, &shader);
+            DrawMHX2(mhx2, modelMatrix, &shader, &renderer, 0, g_PauseAnim ? 0.0f : lastTime * 0.001);
+
+            // draw the skeleton
+            if (g_ShowSkeleton)
+                DrawSkeleton(mhx2, modelMatrix, &lineShader, &renderer, 0, g_PauseAnim ? 0.0f : lastTime * 0.001);
 
             renderer.EndScene();
 
-            // calculate the elapsed time
-            double elapsedTime = (double)::GetTickCount64() - lastTime;
-            lastTime           = (double)::GetTickCount64();
-            angle              = std::fmodf(angle + ((float)elapsedTime * 0.001f), 2.0f * (float)M_PI);
+            // calculate the next angle
+            if (g_Rotate)
+                angle = std::fmodf(angle + ((float)elapsedTime * 0.001f), 2.0f * (float)M_PI);
 
             Sleep(1);
         }

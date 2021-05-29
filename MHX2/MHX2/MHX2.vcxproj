@@ -160,6 +160,7 @@
     <ClInclude Include="json\json.h" />
     <ClInclude Include="Matrix4x4.h" />
     <ClInclude Include="MHX2Model.h" />
+    <ClInclude Include="Model.h" />
     <ClInclude Include="PngTextureHelper.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Renderer_OpenGL.h" />
@@ -179,6 +180,7 @@
     <ClCompile Include="MHX2.cpp" />
     <ClCompile Include="Matrix4x4.cpp" />
     <ClCompile Include="MHX2Model.cpp" />
+    <ClCompile Include="Model.cpp" />
     <ClCompile Include="PngTextureHelper.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Renderer_OpenGL.cpp" />

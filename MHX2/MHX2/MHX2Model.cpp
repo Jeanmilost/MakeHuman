@@ -28,73 +28,6 @@
 
 #include "MHX2Model.h"
 
- //---------------------------------------------------------------------------
- // MHX2Model::IBone
- //---------------------------------------------------------------------------
-MHX2Model::IBone::IBone() :
-    m_pParent(nullptr),
-    m_Roll(0.0f)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IBone::~IBone()
-{
-    const std::size_t count = m_Children.size();
-
-    for (std::size_t i = 0; i < count; ++i)
-        delete m_Children[i];
-}
-//---------------------------------------------------------------------------
-// MHX2Model::ISkeleton
-//---------------------------------------------------------------------------
-MHX2Model::ISkeleton::ISkeleton() :
-    m_Scale(1.0f),
-    m_pRoot(nullptr)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::ISkeleton::~ISkeleton()
-{
-    if (m_pRoot)
-        delete m_pRoot;
-}
-//---------------------------------------------------------------------------
-// MHX2Model::IWeight
-//---------------------------------------------------------------------------
-MHX2Model::IWeight::IWeight() :
-    m_Index(0),
-    m_VertexIndex(0),
-    m_Value(1.0f)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IWeight::~IWeight()
-{}
-//---------------------------------------------------------------------------
-// MHX2Model::IBonedWeights
-//---------------------------------------------------------------------------
-MHX2Model::IBonedWeights::IBonedWeights() :
-    m_pBone(nullptr)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IBonedWeights::~IBonedWeights()
-{
-    const std::size_t count = m_Weights.size();
-
-    for (std::size_t i = 0; i < count; ++i)
-        delete m_Weights[i];
-}
-//---------------------------------------------------------------------------
-// MHX2Model::IModel
-//---------------------------------------------------------------------------
-MHX2Model::IModel::IModel() :
-    m_pSkeleton(nullptr)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IModel::~IModel()
-{
-    const std::size_t count = m_Meshes.size();
-
-    for (std::size_t i = 0; i < count; ++i)
-        delete m_Meshes[i];
-}
 //---------------------------------------------------------------------------
 // MHX2Model::ILogger
 //---------------------------------------------------------------------------
@@ -321,13 +254,13 @@ bool MHX2Model::IItem::ParseMatrix(json_value* pJson, Matrix4x4F& matrix, std::s
 
         case JSON_INT:
             // read the next value. May be an int if value is 0 or 1
-            matrix.m_Table[y][x] = float(pJson->int_value);
+            matrix.m_Table[x][y] = float(pJson->int_value);
             ++x;
             return true;
 
         case JSON_FLOAT:
             // read the next value
-            matrix.m_Table[y][x] = pJson->float_value;
+            matrix.m_Table[x][y] = pJson->float_value;
             ++x;
             return true;
     }
@@ -1771,6 +1704,25 @@ bool MHX2Model::IModelItem::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
+// MHX2Model::IBoneDetails
+//---------------------------------------------------------------------------
+MHX2Model::IBoneDetails::IBoneDetails() :
+    m_Roll(0.0f)
+{}
+//---------------------------------------------------------------------------
+MHX2Model::IBoneDetails::~IBoneDetails()
+{}
+//---------------------------------------------------------------------------
+// MHX2Model::IRootBoneDetails
+//---------------------------------------------------------------------------
+MHX2Model::IRootBoneDetails::IRootBoneDetails() :
+    IBoneDetails(),
+    m_Scale(1.0f)
+{}
+//---------------------------------------------------------------------------
+MHX2Model::IRootBoneDetails::~IRootBoneDetails()
+{}
+//---------------------------------------------------------------------------
 // MHX2Model
 //---------------------------------------------------------------------------
 MHX2Model::MHX2Model() :
@@ -1793,6 +1745,9 @@ MHX2Model::MHX2Model() :
 //---------------------------------------------------------------------------
 MHX2Model::~MHX2Model()
 {
+    for (IBonesDetails::iterator it = m_BoneDetails.begin(); it != m_BoneDetails.end(); ++it)
+        delete (*it);
+
     if (m_pModel)
         delete m_pModel;
 }
@@ -1850,7 +1805,7 @@ bool MHX2Model::Open(const std::string& fileName)
     {
         // file read succeeded?
         if (success)
-            // add readed data to output
+            // add read data to output
             data += std::string((const char*)pBuffer, bufferSize);
     }
     catch (...)
@@ -1897,14 +1852,11 @@ bool MHX2Model::Read(const std::string& data)
         return false;
 
     // create the mhx2 model
-    std::unique_ptr<IModel>    pModel(new IModel());
-    std::unique_ptr<ISkeleton> pSkeleton(new ISkeleton());
+    std::unique_ptr<Model> pModel(new Model());
 
     // build the model skeleton
-    if (!BuildSkeleton(pModelItem->m_Skeleton, pSkeleton.get()))
+    if (!BuildSkeleton(pModelItem->m_Skeleton, pModel.get()))
         return false;
-
-    pModel->m_pSkeleton = pSkeleton.release();
 
     const std::size_t geometryCount = pModelItem->m_Geometries.size();
 
@@ -1913,46 +1865,124 @@ bool MHX2Model::Read(const std::string& data)
         if (!BuildGeometry(pModelItem.get(), pModelItem->m_Geometries[i], pModel.get()))
             return false;
 
+    // to show only the pose without animation
+    pModel->m_PoseOnly = m_PoseOnly;
+
     m_pModel = pModel.release();
     return true;
 }
 //---------------------------------------------------------------------------
-MHX2Model::IModel* MHX2Model::GetModel() const
+Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
 {
+    // no model?
+    if (!m_pModel)
+        return nullptr;
+
+    // if mesh has no skeleton, or if only the pose is required, perform a simple draw
+    if (!m_pModel->m_pSkeleton || m_pModel->m_PoseOnly)
+        return m_pModel;
+
+    // clear the animation matrix cache
+    const_cast<IAnimBoneCacheDict&>(m_AnimBoneCacheDict).clear();
+
+    const std::size_t meshCount = m_pModel->m_Mesh.size();
+
+    // iterate through model meshes
+    for (std::size_t i = 0; i < meshCount; ++i)
+    {
+        // get model mesh
+        Mesh* pMesh = m_pModel->m_Mesh[i];
+
+        // found it?
+        if (!pMesh)
+            continue;
+
+        // normally each mesh should contain only one vertex buffer
+        if (pMesh->m_VB.size() != 1)
+            // unsupported if not (because cannot know which texture should be binded. If a such model
+            // exists, a custom version of this function should also be written for it)
+            continue;
+
+        // malformed deformers?
+        if (meshCount != m_pModel->m_Deformers.size())
+            return nullptr;
+
+        const std::size_t weightCount = m_pModel->m_Deformers[i]->m_SkinWeights.size();
+
+        // mesh contains skin weights?
+        if (!weightCount)
+            return nullptr;
+
+        // clear the previous vertex buffer vertices in order to rebuild them
+        for (std::size_t j = 0; j < pMesh->m_VB[0]->m_Data.size(); j += pMesh->m_VB[0]->m_Format.m_Stride)
+        {
+            pMesh->m_VB[0]->m_Data[j]     = 0.0f;
+            pMesh->m_VB[0]->m_Data[j + 1] = 0.0f;
+            pMesh->m_VB[0]->m_Data[j + 2] = 0.0f;
+        }
+
+        // iterate through mesh skin weights
+        for (std::size_t j = 0; j < weightCount; ++j)
+        {
+            Matrix4x4F boneMatrix;
+
+            // get the bone matrix
+            //if (m_pModel->m_PoseOnly)
+                // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
+                boneMatrix = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone->m_Matrix;
+            /*
+            else
+                GetBoneAnimMatrix(m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone,
+                                  m_pModel->m_AnimationSet[animSetIndex],
+                                  std::fmod(elapsedTime, (double)m_pModel->m_AnimationSet[animSetIndex]->m_MaxValue / 46186158000.0),
+                                  Matrix4x4F::Identity(),
+                                  boneMatrix);
+            */
+
+            // get the final matrix after bones transform
+            const Matrix4x4F finalMatrix = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Matrix.Multiply(boneMatrix);
+
+            // get the weight influence count
+            const std::size_t weightInfluenceCount = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences.size();
+
+            // apply the bone and its skin weights to each vertices
+            for (std::size_t k = 0; k < weightInfluenceCount; ++k)
+            {
+                // get the vertex index count
+                //REM const std::size_t vertexIndexCount =
+                    //REM m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex.size();
+
+                // iterate through weights influences vertex indices
+                //REM for (std::size_t l = 0; l < vertexIndexCount; ++l)
+                {
+                    // get the next vertex to which the next skin weight should be applied
+                    //REM const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l];
+                    //REM const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 1;
+                    //REM const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 2;
+                    const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index;
+                    const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 1;
+                    const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 2;
+
+                    Vector3F inputVertex;
+
+                    // get input vertex
+                    inputVertex.m_X = (*m_VBCache[i])[iX];
+                    inputVertex.m_Y = (*m_VBCache[i])[iY];
+                    inputVertex.m_Z = (*m_VBCache[i])[iZ];
+
+                    // apply bone transformation to vertex
+                    const Vector3F outputVertex = finalMatrix.Transform(inputVertex);
+
+                    // apply the skin weights and calculate the final output vertex
+                    pMesh->m_VB[0]->m_Data[iX] += (outputVertex.m_X * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                    pMesh->m_VB[0]->m_Data[iY] += (outputVertex.m_Y * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                    pMesh->m_VB[0]->m_Data[iZ] += (outputVertex.m_Z * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                }
+            }
+        }
+    }
+
     return m_pModel;
-}
-//---------------------------------------------------------------------------
-void MHX2Model::GetBoneMatrix(const IBone* pBone, const Matrix4x4F& initialMatrix, Matrix4x4F& matrix) const
-{
-    // no bone?
-    if (!pBone)
-        return;
-
-    // set the output matrix as identity
-    matrix = Matrix4x4F::Identity();
-
-    // iterate through bones
-    while (pBone)
-    {
-        // get the previously stacked matrix as base to calculate the new one
-        const Matrix4x4F localMatrix = matrix;
-
-        // stack the previously calculated matrix with the current bone one
-        matrix = localMatrix.Multiply(pBone->m_Matrix);
-
-        // go to parent bone
-        pBone = pBone->m_pParent;
-    }
-
-    // initial matrix provided?
-    if (!initialMatrix.IsIdentity())
-    {
-        // get the previously stacked matrix as base to calculate the new one
-        const Matrix4x4F localMatrix = matrix;
-
-        // stack the previously calculated matrix with the initial one
-        matrix = localMatrix.Multiply(initialMatrix);
-    }
 }
 //---------------------------------------------------------------------------
 void MHX2Model::SetVertFormatTemplate(const VertexFormat& vertFormatTemplate)
@@ -1970,25 +2000,25 @@ void MHX2Model::SetMaterial(const Material& materialTemplate)
     m_MaterialTemplate = materialTemplate;
 }
 //---------------------------------------------------------------------------
-void MHX2Model::Set_OnGetVertexColor(ITfOnGetVertexColor fOnGetVertexColor)
+void MHX2Model::SetPoseOnly(bool value)
+{
+    m_PoseOnly = value;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::Set_OnGetVertexColor(VertexBuffer::ITfOnGetVertexColor fOnGetVertexColor)
 {
     m_fOnGetVertexColor = fOnGetVertexColor;
 }
 //---------------------------------------------------------------------------
-void MHX2Model::Set_OnLoadTexture(ITfOnLoadTexture fOnLoadTexture)
+void MHX2Model::Set_OnLoadTexture(Texture::ITfOnLoadTexture fOnLoadTexture)
 {
     m_fOnLoadTexture = fOnLoadTexture;
 }
 //---------------------------------------------------------------------------
-bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSkeleton)
+bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel)
 {
-    if (!pSkeleton)
+    if (!pModel)
         return false;
-
-    // populate the skeleton object
-    pSkeleton->m_Name   = skeletonItem.m_Name;
-    pSkeleton->m_Scale  = skeletonItem.m_Scale;
-    pSkeleton->m_Offset = skeletonItem.m_Offset;
 
     // get the bone count
     const std::size_t boneCount = skeletonItem.m_Bones.size();
@@ -1996,29 +2026,57 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSke
     // iterate through the bones and build the skeleton
     for (std::size_t i = 0; i < boneCount; ++i)
     {
-        // create the bone and populate it
-        std::unique_ptr<IBone> pBone(new IBone());
-        pBone->m_Name   = skeletonItem.m_Bones[i]->m_Name;
-        pBone->m_Head   = skeletonItem.m_Bones[i]->m_Head;
-        pBone->m_Tail   = skeletonItem.m_Bones[i]->m_Tail;
-        pBone->m_Roll   = skeletonItem.m_Bones[i]->m_Roll;
-        pBone->m_Matrix = skeletonItem.m_Bones[i]->m_Matrix;
+        Model::IBone* pParent = nullptr;
 
         // link the parent bone
-        if (!skeletonItem.m_Bones[i]->m_Parent.empty())
-            pBone->m_pParent = GetBone(skeletonItem.m_Bones[i]->m_Parent, pSkeleton->m_pRoot);
+        if (!skeletonItem.m_Bones[i]->m_Parent.empty() && pModel->m_pSkeleton)
+            pParent = pModel->FindBone(pModel->m_pSkeleton, skeletonItem.m_Bones[i]->m_Parent);
 
         // is the root bone?
-        if (!pBone->m_pParent)
+        if (!pParent)
         {
-            // only one root bone may exist, if another was previously assigned it's an error
-            if (!pSkeleton->m_pRoot)
-                pSkeleton->m_pRoot = pBone.release();
-            else
-                return false;
+            // create the bone and populate it
+            std::unique_ptr<Model::IBone> pSkeleton(new Model::IBone());
+            pSkeleton->m_Name   = skeletonItem.m_Bones[i]->m_Name;
+            pSkeleton->m_Matrix = skeletonItem.m_Bones[i]->m_Matrix;
+
+            std::unique_ptr<IRootBoneDetails> pRootBoneDetails(new IRootBoneDetails());
+
+            // populate the skeleton details
+            pRootBoneDetails->m_Name   = skeletonItem.m_Name;
+            pRootBoneDetails->m_Scale  = skeletonItem.m_Scale;
+            pRootBoneDetails->m_Offset = skeletonItem.m_Offset;
+
+            // also populate the bone details
+            pRootBoneDetails->m_Head = skeletonItem.m_Bones[i]->m_Head;
+            pRootBoneDetails->m_Tail = skeletonItem.m_Bones[i]->m_Tail;
+            pRootBoneDetails->m_Roll = skeletonItem.m_Bones[i]->m_Roll;
+
+            // link the bone details to the bone
+            m_BoneDetails.push_back(pRootBoneDetails.get());
+            pSkeleton->m_pCustom = pRootBoneDetails.release();
+
+            pModel->m_pSkeleton = pSkeleton.release();
         }
         else
         {
+            // create the bone and populate it
+            std::unique_ptr<Model::IBone> pBone(new Model::IBone());
+            pBone->m_pParent = pParent;
+            pBone->m_Name    = skeletonItem.m_Bones[i]->m_Name;
+            pBone->m_Matrix  = skeletonItem.m_Bones[i]->m_Matrix;
+
+            std::unique_ptr<IBoneDetails> pBoneDetails(new IBoneDetails());
+
+            // populate the bone details
+            pBoneDetails->m_Head = skeletonItem.m_Bones[i]->m_Head;
+            pBoneDetails->m_Tail = skeletonItem.m_Bones[i]->m_Tail;
+            pBoneDetails->m_Roll = skeletonItem.m_Bones[i]->m_Roll;
+
+            // link the bone details to the bone
+            m_BoneDetails.push_back(pBoneDetails.get());
+            pBone->m_pCustom = pBoneDetails.release();
+
             // add this bone to the parent children bones
             pBone->m_pParent->m_Children.push_back(pBone.get());
             pBone.release();
@@ -2028,32 +2086,7 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSke
     return true;
 }
 //---------------------------------------------------------------------------
-MHX2Model::IBone* MHX2Model::GetBone(const std::string& name, IBone* pBone) const
-{
-    // no parent bone?
-    if (!pBone)
-        return nullptr;
-
-    // found the bone to get?
-    if (pBone->m_Name == name)
-        return pBone;
-
-    // get children count
-    const std::size_t count = pBone->m_Children.size();
-
-    // Search for the bone in children
-    for (std::size_t i = 0; i < count; ++i)
-    {
-        IBone* pChild = GetBone(name, pBone->m_Children[i]);
-
-        if (pChild)
-            return pChild;
-    }
-
-    return nullptr;
-}
-//---------------------------------------------------------------------------
-bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, IModel* pModel)
+bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, Model* pModel)
 {
     if (!pModelItem)
         return false;
@@ -2109,17 +2142,26 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
         }
     }
 
+    std::unique_ptr<Model::IDeformers> pDeformers;
+    ISkinWeightsDict                   skinWeightsDict;
+
     const std::size_t weightsGroupCount = pGeometryItem->m_Mesh.m_WeightGroups.size();
 
     // create the mesh weights containers
     if (!m_PoseOnly)
+    {
+        pDeformers.reset(new Model::IDeformers());
+
         for (std::size_t i = 0; i < weightsGroupCount; ++i)
         {
-            std::unique_ptr<IBonedWeights> pBonedWeights(new IBonedWeights());
-            pBonedWeights->m_pBone = GetBone(pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key, pModel->m_pSkeleton->m_pRoot);
-            pModel->m_Weights.push_back(pBonedWeights.get());
-            pBonedWeights.release();
+            std::unique_ptr<Model::ISkinWeights> pSkinWeights(new Model::ISkinWeights());
+            pSkinWeights->m_BoneName                  = pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key;
+            pSkinWeights->m_pBone                     = pModel->FindBone(pModel->m_pSkeleton, pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key);
+            skinWeightsDict[pSkinWeights->m_BoneName] = pSkinWeights.get();
+            pDeformers->m_SkinWeights.push_back(pSkinWeights.get());
+            pSkinWeights.release();
         }
+    }
 
     // iterate through the faces to build
     for (std::size_t i = 0; i < faceCount; ++i)
@@ -2137,12 +2179,11 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
                 const Vector3F    normal;
 
                 // add the vertex to the buffer
-                VertexBufferAdd(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[index]],
-                               &normal,
-                               &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[index]]->m_Value,
-                                0,
-                                m_fOnGetVertexColor,
-                                pVB.get());
+                pVB->Add(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[index]],
+                        &normal,
+                        &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[index]]->m_Value,
+                         0,
+                         m_fOnGetVertexColor);
 
                 // do build the weights
                 if (m_PoseOnly)
@@ -2157,127 +2198,43 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
                     // found a matching vertex weight?
                     if (it != pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Table.end())
                     {
+                        Model::ISkinWeights* pSkinWeights = skinWeightsDict[pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Key];
+
+                        if (!pSkinWeights)
+                            continue;
+
+                        std::unique_ptr<Model::IWeightInfluence> pWeightInfluence(new Model::IWeightInfluence());
+
                         // create and populate the weight and add it to the matching bone group
-                        std::unique_ptr<IWeight> pWeight(new IWeight());
-                        pWeight->m_Index       = (vertexIndex / pVB->m_Format.m_Stride);
-                        pWeight->m_VertexIndex = vertexIndex;
-                        pWeight->m_Value       = it->second;
-                        pModel->m_Weights[l]->m_Weights.push_back(pWeight.get());
-                        pWeight.release();
+                        pWeightInfluence->m_Index = vertexIndex;
+                        pSkinWeights->m_Weights.push_back(it->second);
+                        pSkinWeights->m_WeightInfluences.push_back(pWeightInfluence.get());
+                        pWeightInfluence.release();
                         break;
                     }
                 }
             }
     }
 
+    // cache the vertex buffer
+    std::unique_ptr<VertexBuffer::IData> pVBData(new VertexBuffer::IData());
+    *pVBData = pVB->m_Data;
+    m_VBCache.push_back(pVBData.get());
+    pVBData.release();
+
     // add the vertex buffer to the mesh
     pMesh->m_VB.push_back(pVB.get());
     pVB.release();
 
     // add the mesh to the model
-    pModel->m_Meshes.push_back(pMesh.get());
+    pModel->m_Mesh.push_back(pMesh.get());
     pMesh.release();
 
-    return true;
-}
-//---------------------------------------------------------------------------
-bool MHX2Model::VertexBufferAdd(const Vector3F*           pVertex,
-                                const Vector3F*           pNormal,
-                                const Vector2F*           pUV,
-                                      std::size_t         groupIndex,
-                                const ITfOnGetVertexColor fOnGetVertexColor,
-                                      VertexBuffer*       pVB) const
-{
-    // no vertex buffer to add to?
-    if (!pVB)
-        return false;
-
-    // the stride should be already calculated
-    if (!pVB->m_Format.m_Stride)
-        return false;
-
-    // keep the current offset
-    std::size_t offset = pVB->m_Data.size();
-
-    // allocate space for new vertex
-    pVB->m_Data.resize(pVB->m_Data.size() + pVB->m_Format.m_Stride);
-
-    // source vertex exists?
-    if (!pVertex)
+    // add the deformers to the model
+    if (!m_PoseOnly)
     {
-        // cannot add a nonexistent vertex, fill with empty data in this case
-        pVB->m_Data[offset]     = 0.0f;
-        pVB->m_Data[offset + 1] = 0.0f;
-        pVB->m_Data[offset + 2] = 0.0f;
-    }
-    else
-    {
-        // copy vertex from source
-        pVB->m_Data[offset]     = pVertex->m_X;
-        pVB->m_Data[offset + 1] = pVertex->m_Y;
-        pVB->m_Data[offset + 2] = pVertex->m_Z;
-    }
-
-    offset += 3;
-
-    // vertex has a normal?
-    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_Normals)
-    {
-        // source normal exists?
-        if (!pNormal)
-        {
-            // cannot add a nonexistent normal, fill with empty data in this case
-            pVB->m_Data[offset]     = 0.0f;
-            pVB->m_Data[offset + 1] = 0.0f;
-            pVB->m_Data[offset + 2] = 0.0f;
-        }
-        else
-        {
-            // copy normal from source
-            pVB->m_Data[offset]     = pNormal->m_X;
-            pVB->m_Data[offset + 1] = pNormal->m_Y;
-            pVB->m_Data[offset + 2] = pNormal->m_Z;
-        }
-
-        offset += 3;
-    }
-
-    // vertex has UV texture coordinates?
-    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_TexCoords)
-    {
-        // source texture coordinates exists?
-        if (!pUV)
-        {
-            // cannot add nonexistent texture coordinates, fill with empty data in this case
-            pVB->m_Data[offset] = 0.0f;
-            pVB->m_Data[offset + 1] = 0.0f;
-        }
-        else
-        {
-            // copy texture coordinates from source
-            pVB->m_Data[offset] = pUV->m_X;
-            pVB->m_Data[offset + 1] = pUV->m_Y;
-        }
-
-        offset += 2;
-    }
-
-    // vertex has color?
-    if ((unsigned)pVB->m_Format.m_Format & (unsigned)VertexFormat::IEFormat::IE_VF_Colors)
-    {
-        ColorF color;
-
-        // get the vertex color
-        if (fOnGetVertexColor)
-            color = fOnGetVertexColor(pVB, pNormal, groupIndex);
-        else
-            color = pVB->m_Material.m_Color;
-
-        // set color data
-        pVB->m_Data[offset]     = color.m_R;
-        pVB->m_Data[offset + 1] = color.m_G;
-        pVB->m_Data[offset + 2] = color.m_B;
-        pVB->m_Data[offset + 3] = color.m_A;
+        pModel->m_Deformers.push_back(pDeformers.get());
+        pDeformers.release();
     }
 
     return true;

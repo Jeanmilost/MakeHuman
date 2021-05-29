@@ -42,6 +42,7 @@
 #include "Vector3.h"
 #include "Matrix4x4.h"
 #include "Vertex.h"
+#include "Model.h"
 
 /**
 * MakeHuman .mhx2 file reader
@@ -50,114 +51,6 @@
 class MHX2Model
 {
     public:
-        /**
-        * Model bone
-        */
-        struct IBone
-        {
-            typedef std::vector<IBone*> IBones;
-
-            std::string m_Name;
-            IBone*      m_pParent;
-            IBones      m_Children;
-            Vector3F    m_Head;
-            Vector3F    m_Tail;
-            float       m_Roll;
-            Matrix4x4F  m_Matrix;
-
-            IBone();
-            virtual ~IBone();
-        };
-
-        /**
-        * Model bones
-        */
-        typedef std::vector<IBone*> IBones;
-
-        /**
-        * Model skeleton
-        */
-        struct ISkeleton
-        {
-            std::string m_Name;
-            Vector3F    m_Offset;
-            float       m_Scale;
-            IBone*      m_pRoot;
-
-            ISkeleton();
-            virtual ~ISkeleton();
-        };
-
-        /**
-        * Model weight
-        */
-        struct IWeight
-        {
-            std::size_t m_Index;
-            std::size_t m_VertexIndex;
-            float       m_Value;
-
-            IWeight();
-            virtual ~IWeight();
-        };
-
-        /**
-        * Model weights
-        */
-        typedef std::vector<IWeight*> IWeights;
-
-        /**
-        * Model boned weights, i.e weight linked to a skeleton bone
-        */
-        struct IBonedWeights
-        {
-            IBone*   m_pBone;
-            IWeights m_Weights;
-
-            IBonedWeights();
-            virtual ~IBonedWeights();
-        };
-
-        /**
-        * Model mesh weights, i.e boned weights belonging to a mesh
-        */
-        typedef std::vector<IBonedWeights*> IMeshWeights;
-
-        /**
-        * Model
-        */
-        struct IModel
-        {
-            typedef std::vector<Mesh*> IMeshes;
-
-            ISkeleton*   m_pSkeleton;
-            IMeshes      m_Meshes;
-            IMeshWeights m_Weights;
-
-            IModel();
-            virtual ~IModel();
-        };
-
-        /**
-        * Called when a vertex color should be get
-        *@param pVB - vertex buffer that will contain the vertex for which the color should be get
-        *@param pNormal - vertex normal
-        *@param groupIndex - the vertex group index (e.g. the inner and outer vertices of a ring)
-        *@return RGBA color to apply to the vertex
-        *@note This callback will be called only if the per-vertex color option is activated in the vertex
-        *      buffer
-        */
-        typedef ColorF(*ITfOnGetVertexColor)(const VertexBuffer* pVB, const Vector3F* pNormal, std::size_t groupIndex);
-
-        /**
-        * Called when a texture should be loaded
-        *@param textureName - texture name to load
-        *@param is32bit - if true, the image should be opened in 32 bit BGRA format
-        *@return the loaded texture
-        *@note The loaded texture will be deleted internally, and should no longer be deleted from outside
-        */
-        typedef Texture* (*ITfOnLoadTexture)(const std::string& textureName, bool is32bit);
-
         MHX2Model();
         virtual ~MHX2Model();
 
@@ -176,18 +69,12 @@ class MHX2Model
         virtual bool Read(const std::string& data);
 
         /**
-        * Get the model
-        *@return the model
+        * Gets a ready-to-draw copy of the model
+        *@param animSetIndex - animation set index
+        *@param elapsedTime - elapsed time in milliseconds
+        *@return a ready-to-draw copy of the model, nullptr on error
         */
-        virtual IModel* GetModel() const;
-
-        /**
-        * Gets the bone animation matrix
-        *@param pBone - skeleton root bone
-        *@param initialMatrix - the initial matrix
-        *@param[out] matrix - animation matrix
-        */
-        virtual void GetBoneMatrix(const IBone* pBone, const Matrix4x4F& initialMatrix, Matrix4x4F& matrix) const;
+        virtual Model* GetModel(int animSetIndex, double elapsedTime) const;
 
         /**
         * Changes the vertex format template
@@ -208,16 +95,23 @@ class MHX2Model
         virtual void SetMaterial(const Material& materialTemplate);
 
         /**
+        * Sets if only the pose should be rendered, without animation
+        *@param value - if true, only the pose will be rendered
+        *@note This function should be called before open the model
+        */
+        virtual void SetPoseOnly(bool value);
+
+        /**
         * Sets the OnGetVertexColor callback
         *@param fOnGetVertexColor - callback function handle
         */
-        void Set_OnGetVertexColor(ITfOnGetVertexColor fOnGetVertexColor);
+        void Set_OnGetVertexColor(VertexBuffer::ITfOnGetVertexColor fOnGetVertexColor);
 
         /**
         * Sets the OnLoadTexture callback
         *@param fOnLoadTexture - callback function handle
         */
-        void Set_OnLoadTexture(ITfOnLoadTexture fOnLoadTexture);
+        void Set_OnLoadTexture(Texture::ITfOnLoadTexture fOnLoadTexture);
 
     private:
         /**
@@ -665,56 +559,73 @@ class MHX2Model
             virtual bool Parse(json_value* pJson, ILogger& logger);
         };
 
-        IModel*             m_pModel;
-        VertexFormat        m_VertFormatTemplate;
-        VertexCulling       m_VertCullingTemplate;
-        Material            m_MaterialTemplate;
-        ILogger             m_Logger;
-        bool                m_PoseOnly;
-        ITfOnGetVertexColor m_fOnGetVertexColor;
-        ITfOnLoadTexture    m_fOnLoadTexture;
+        /**
+        * Bone details
+        */
+        struct IBoneDetails
+        {
+            Vector3F m_Head;
+            Vector3F m_Tail;
+            float    m_Roll;
+
+            IBoneDetails();
+            virtual ~IBoneDetails();
+        };
+
+        /**
+        * Root bone details
+        */
+        struct IRootBoneDetails: public IBoneDetails
+        {
+            std::string m_Name;
+            Vector3F    m_Offset;
+            float       m_Scale;
+
+            IRootBoneDetails();
+            virtual ~IRootBoneDetails();
+        };
+
+        typedef std::vector<IBoneDetails*>                  IBonesDetails;
+        typedef std::map<std::string, Model::ISkinWeights*> ISkinWeightsDict;
+
+        /**
+        * Animated bone cache dictionary
+        */
+        typedef std::map<const Model::IBone*, Matrix4x4F> IAnimBoneCacheDict;
+
+        /**
+        * Source vertex buffer cache
+        */
+        typedef std::vector<VertexBuffer::IData*> IVBCache;
+
+        Model*                            m_pModel;
+        IBonesDetails                     m_BoneDetails;
+        VertexFormat                      m_VertFormatTemplate;
+        VertexCulling                     m_VertCullingTemplate;
+        Material                          m_MaterialTemplate;
+        IAnimBoneCacheDict                m_AnimBoneCacheDict;
+        IVBCache                          m_VBCache;
+        ILogger                           m_Logger;
+        bool                              m_PoseOnly;
+        VertexBuffer::ITfOnGetVertexColor m_fOnGetVertexColor;
+        Texture::ITfOnLoadTexture         m_fOnLoadTexture;
 
         /**
         * Builds the skeleton
-        *@param skeletonItem - source skeleton item readed from the file
-        *@param pSkeleton - target skeleton to build
+        *@param skeletonItem - source skeleton item read from the file
+        *@param pModel - model which will own the skeleton
         *@return true on success, otherwise false
         */
-        bool BuildSkeleton(const ISkeletonItem& skeletonItem, ISkeleton* pSkeleton);
-
-        /**
-        * Gets a bone
-        *@param name - bone name to get
-        *@param pBone - parent bone to search from
-        *@return the bone matching with name, nullptr if not found or on error
-        */
-        IBone* GetBone(const std::string& name, IBone* pBone) const;
+        bool BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel);
 
         /**
         * Builds the geometry
-        *@param pModelItem - source model item readed from the file
-        *@param pGeometryItem - source geometry item readed from the file
+        *@param pModelItem - source model item read from the file
+        *@param pGeometryItem - source geometry item read from the file
         *@param pModel - target model for which the geometry should be built
         *@return true on success, otherwise false
         */
-        bool BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, IModel* pModel);
-
-        /**
-        * Adds a vertex to a vertex buffer
-        *@param pVertex - vertex
-        *@param pNormal - normal
-        *@param pUV - texture coordinate
-        *@param groupIndex - the vertex group index (e.g. the inner and outer vertices of a ring)
-        *@param fOnGetVertexColor - get vertex color callback function to use, nullptr if not used
-        *@param pVB - vertex buffer to add to
-        *@return true on success, otherwise false
-        */
-        bool VertexBufferAdd(const Vector3F*           pVertex,
-                             const Vector3F*           pNormal,
-                             const Vector2F*           pUV,
-                                   std::size_t         groupIndex,
-                             const ITfOnGetVertexColor fOnGetVertexColor,
-                                   VertexBuffer*       pVB) const;
+        bool BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, Model* pModel);
 };
 
 //---------------------------------------------------------------------------

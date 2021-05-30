@@ -1878,6 +1878,9 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
     if (!m_pModel)
         return nullptr;
 
+    // todo FIXME -cFeature -oJean: pose only should be built from default skeleton and weights,
+    //                              but this is not working for now. Return the default model
+    //                              until a solution will be found
     // if mesh has no skeleton, or if only the pose is required, perform a simple draw
     if (!m_pModel->m_pSkeleton || m_pModel->m_PoseOnly)
         return m_pModel;
@@ -1930,6 +1933,11 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
             //if (m_pModel->m_PoseOnly)
                 // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
                 boneMatrix = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone->m_Matrix;
+
+                // todo FIXME -cFeature -oJean: This should be the correct solution to use, unfortunately not working until
+                //                              bone matrix will be extracted from head, tail and roll values. Re-enable
+                //                              this code when it will be the case
+                //m_pModel->GetBoneMatrix(m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone, Matrix4x4F::Identity(), boneMatrix);
             /*
             else
                 GetBoneAnimMatrix(m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone,
@@ -1948,36 +1956,25 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
             // apply the bone and its skin weights to each vertices
             for (std::size_t k = 0; k < weightInfluenceCount; ++k)
             {
-                // get the vertex index count
-                //REM const std::size_t vertexIndexCount =
-                    //REM m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex.size();
+                // get the next vertex to which the next skin weight should be applied
+                const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index;
+                const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 1;
+                const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 2;
 
-                // iterate through weights influences vertex indices
-                //REM for (std::size_t l = 0; l < vertexIndexCount; ++l)
-                {
-                    // get the next vertex to which the next skin weight should be applied
-                    //REM const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l];
-                    //REM const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 1;
-                    //REM const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 2;
-                    const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index;
-                    const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 1;
-                    const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 2;
+                Vector3F inputVertex;
 
-                    Vector3F inputVertex;
+                // get input vertex
+                inputVertex.m_X = (*m_VBCache[i])[iX];
+                inputVertex.m_Y = (*m_VBCache[i])[iY];
+                inputVertex.m_Z = (*m_VBCache[i])[iZ];
 
-                    // get input vertex
-                    inputVertex.m_X = (*m_VBCache[i])[iX];
-                    inputVertex.m_Y = (*m_VBCache[i])[iY];
-                    inputVertex.m_Z = (*m_VBCache[i])[iZ];
+                // apply bone transformation to vertex
+                const Vector3F outputVertex = finalMatrix.Transform(inputVertex);
 
-                    // apply bone transformation to vertex
-                    const Vector3F outputVertex = finalMatrix.Transform(inputVertex);
-
-                    // apply the skin weights and calculate the final output vertex
-                    pMesh->m_VB[0]->m_Data[iX] += (outputVertex.m_X * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
-                    pMesh->m_VB[0]->m_Data[iY] += (outputVertex.m_Y * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
-                    pMesh->m_VB[0]->m_Data[iZ] += (outputVertex.m_Z * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
-                }
+                // apply the skin weights and calculate the final output vertex
+                pMesh->m_VB[0]->m_Data[iX] += (outputVertex.m_X * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                pMesh->m_VB[0]->m_Data[iY] += (outputVertex.m_Y * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                pMesh->m_VB[0]->m_Data[iZ] += (outputVertex.m_Z * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
             }
         }
     }
@@ -2040,6 +2037,30 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel)
             pSkeleton->m_Name   = skeletonItem.m_Bones[i]->m_Name;
             pSkeleton->m_Matrix = skeletonItem.m_Bones[i]->m_Matrix;
 
+            // todo FIXME -cFeature -oJean: Matrix should be built from head, tail and roll instead,
+            //                              but I don't know how to well use these values. The first
+            //                              idea was to find the direction by subtracting tail by head,
+            //                              then to deduce the rotation quaternion by normalizing the
+            //                              direction and using the FromAxis() quaternion function,
+            //                              but the result was incorrect, although close to the expected
+            //                              one
+            /*
+            const Vector3F head = skeletonItem.m_Bones[i]->m_Head;
+            const Vector3F tail = skeletonItem.m_Bones[i]->m_Tail;
+            const float    roll = skeletonItem.m_Bones[i]->m_Roll;
+
+            const Vector3F delta = tail - head;
+            const Vector3F dir   = delta.Normalize();
+
+            QuaternionF rotation;
+            rotation.FromAxis(roll, dir);
+
+            pSkeleton->m_Matrix               = rotation.ToMatrix();
+            pSkeleton->m_Matrix.m_Table[3][0] = head.m_X;
+            pSkeleton->m_Matrix.m_Table[3][1] = head.m_Y;
+            pSkeleton->m_Matrix.m_Table[3][2] = head.m_Z;
+            */
+
             std::unique_ptr<IRootBoneDetails> pRootBoneDetails(new IRootBoneDetails());
 
             // populate the skeleton details
@@ -2065,6 +2086,30 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel)
             pBone->m_pParent = pParent;
             pBone->m_Name    = skeletonItem.m_Bones[i]->m_Name;
             pBone->m_Matrix  = skeletonItem.m_Bones[i]->m_Matrix;
+
+            // todo FIXME -cFeature -oJean: Matrix should be built from head, tail and roll instead,
+            //                              but I don't know how to well use these values. The first
+            //                              idea was to find the direction by subtracting tail by head,
+            //                              then to deduce the rotation quaternion by normalizing the
+            //                              direction and using the FromAxis() quaternion function,
+            //                              but the result was incorrect, although close to the expected
+            //                              one
+            /*
+            const Vector3F head = skeletonItem.m_Bones[i]->m_Head;
+            const Vector3F tail = skeletonItem.m_Bones[i]->m_Tail;
+            const float    roll = skeletonItem.m_Bones[i]->m_Roll;
+
+            const Vector3F delta = tail - head;
+            const Vector3F dir   = delta.Normalize();
+
+            QuaternionF rotation;
+            rotation.FromAxis(roll, dir);
+
+            pBone->m_Matrix               = rotation.ToMatrix();
+            pBone->m_Matrix.m_Table[3][0] = delta.m_X;
+            pBone->m_Matrix.m_Table[3][1] = delta.m_Y;
+            pBone->m_Matrix.m_Table[3][2] = delta.m_Z;
+            */
 
             std::unique_ptr<IBoneDetails> pBoneDetails(new IBoneDetails());
 
@@ -2144,6 +2189,7 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
 
     std::unique_ptr<Model::IDeformers> pDeformers;
     ISkinWeightsDict                   skinWeightsDict;
+    float                              determinant;
 
     const std::size_t weightsGroupCount = pGeometryItem->m_Mesh.m_WeightGroups.size();
 
@@ -2157,6 +2203,10 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
             std::unique_ptr<Model::ISkinWeights> pSkinWeights(new Model::ISkinWeights());
             pSkinWeights->m_BoneName                  = pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key;
             pSkinWeights->m_pBone                     = pModel->FindBone(pModel->m_pSkeleton, pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key);
+            // todo FIXME -cFeature -oJean: following this document: https://veeenu.github.io/blog/implementing-skeletal-animation/
+            //                              But don't know if should really be calculated this way. To check after the bone matrix
+            //                              will work as expected
+            pSkinWeights->m_Matrix                    = pSkinWeights->m_pBone->m_Matrix.Inverse(determinant);
             skinWeightsDict[pSkinWeights->m_BoneName] = pSkinWeights.get();
             pDeformers->m_SkinWeights.push_back(pSkinWeights.get());
             pSkinWeights.release();

@@ -224,6 +224,11 @@ void DrawBone(const MHX2Model&       mhx2Model,
         if (pModel->m_PoseOnly)
             // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
             topMatrix = pBone->m_Matrix;
+
+            // todo FIXME -cFeature -oJean: This should be the correct solution to use, unfortunately not working until
+            //                              bone matrix will be extracted from head, tail and roll values. Re-enable
+            //                              this code when it will be the case
+            //pModel->GetBoneMatrix(pBone, Matrix4x4F::Identity(), topMatrix);
         /*
         else
             mhx2Model.GetBoneAnimMatrix(pBone,
@@ -238,6 +243,11 @@ void DrawBone(const MHX2Model&       mhx2Model,
         if (pModel->m_PoseOnly)
             // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
             bottomMatrix = pChild->m_Matrix;
+
+            // todo FIXME -cFeature -oJean: This should be the correct solution to use, unfortunately not working until
+            //                              bone matrix will be extracted from head, tail and roll values. Re-enable
+            //                              this code when it will be the case
+            //pModel->GetBoneMatrix(pChild, Matrix4x4F::Identity(), bottomMatrix);
         /*
         else
             mhx2Model.GetBoneAnimMatrix(pChild,

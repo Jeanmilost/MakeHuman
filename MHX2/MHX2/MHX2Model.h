@@ -560,33 +560,9 @@ class MHX2Model
         };
 
         /**
-        * Bone details
+        * Index to weight influence dictionary
         */
-        struct IBoneDetails
-        {
-            Vector3F m_Head;
-            Vector3F m_Tail;
-            float    m_Roll;
-
-            IBoneDetails();
-            virtual ~IBoneDetails();
-        };
-
-        /**
-        * Root bone details
-        */
-        struct IRootBoneDetails: public IBoneDetails
-        {
-            std::string m_Name;
-            Vector3F    m_Offset;
-            float       m_Scale;
-
-            IRootBoneDetails();
-            virtual ~IRootBoneDetails();
-        };
-
-        typedef std::vector<IBoneDetails*>                  IBonesDetails;
-        typedef std::map<std::string, Model::ISkinWeights*> ISkinWeightsDict;
+        typedef std::map<std::size_t, Model::IWeightInfluences> IIndexToInflDict;
 
         /**
         * Animated bone cache dictionary
@@ -599,7 +575,6 @@ class MHX2Model
         typedef std::vector<VertexBuffer::IData*> IVBCache;
 
         Model*                            m_pModel;
-        IBonesDetails                     m_BoneDetails;
         VertexFormat                      m_VertFormatTemplate;
         VertexCulling                     m_VertCullingTemplate;
         Material                          m_MaterialTemplate;
@@ -626,6 +601,14 @@ class MHX2Model
         *@return true on success, otherwise false
         */
         bool BuildGeometry(const IModelItem* pModelItem, const IGeometryItem* pGeometryItem, Model* pModel);
+
+        /**
+        * Add a weight influence for a vertex buffer
+        *@param pIndexToInfl - index to influence dictionary
+        *@param indice - vertex indice in the source buffer
+        *@param pModelVB - model vertex buffer in which the weight influence index should be added
+        */
+        void AddWeightInfluence(const IIndexToInflDict* pIndexToInfl, std::size_t indice, VertexBuffer* pModelVB) const;
 };
 
 //---------------------------------------------------------------------------

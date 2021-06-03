@@ -1704,25 +1704,6 @@ bool MHX2Model::IModelItem::Parse(json_value* pJson, ILogger& logger)
     return false;
 }
 //---------------------------------------------------------------------------
-// MHX2Model::IBoneDetails
-//---------------------------------------------------------------------------
-MHX2Model::IBoneDetails::IBoneDetails() :
-    m_Roll(0.0f)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IBoneDetails::~IBoneDetails()
-{}
-//---------------------------------------------------------------------------
-// MHX2Model::IRootBoneDetails
-//---------------------------------------------------------------------------
-MHX2Model::IRootBoneDetails::IRootBoneDetails() :
-    IBoneDetails(),
-    m_Scale(1.0f)
-{}
-//---------------------------------------------------------------------------
-MHX2Model::IRootBoneDetails::~IRootBoneDetails()
-{}
-//---------------------------------------------------------------------------
 // MHX2Model
 //---------------------------------------------------------------------------
 MHX2Model::MHX2Model() :
@@ -1745,9 +1726,6 @@ MHX2Model::MHX2Model() :
 //---------------------------------------------------------------------------
 MHX2Model::~MHX2Model()
 {
-    for (IBonesDetails::iterator it = m_BoneDetails.begin(); it != m_BoneDetails.end(); ++it)
-        delete (*it);
-
     if (m_pModel)
         delete m_pModel;
 }
@@ -1878,11 +1856,8 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
     if (!m_pModel)
         return nullptr;
 
-    // todo FIXME -cFeature -oJean: pose only should be built from default skeleton and weights,
-    //                              but this is not working for now. Return the default model
-    //                              until a solution will be found
-    // if mesh has no skeleton, or if only the pose is required, perform a simple draw
-    if (!m_pModel->m_pSkeleton || m_pModel->m_PoseOnly)
+    // if mesh has no skeleton, perform a simple draw
+    if (!m_pModel->m_pSkeleton)
         return m_pModel;
 
     // clear the animation matrix cache
@@ -1930,14 +1905,9 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
             Matrix4x4F boneMatrix;
 
             // get the bone matrix
-            //if (m_pModel->m_PoseOnly)
+            if (m_pModel->m_PoseOnly)
                 // in mhx2 files, the bones matrix are pre-calculated, so don't call the pModel->GetBoneMatrix() function
                 boneMatrix = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone->m_Matrix;
-
-                // todo FIXME -cFeature -oJean: This should be the correct solution to use, unfortunately not working until
-                //                              bone matrix will be extracted from head, tail and roll values. Re-enable
-                //                              this code when it will be the case
-                //m_pModel->GetBoneMatrix(m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone, Matrix4x4F::Identity(), boneMatrix);
             /*
             else
                 GetBoneAnimMatrix(m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_pBone,
@@ -1956,25 +1926,33 @@ Model* MHX2Model::GetModel(int animSetIndex, double elapsedTime) const
             // apply the bone and its skin weights to each vertices
             for (std::size_t k = 0; k < weightInfluenceCount; ++k)
             {
-                // get the next vertex to which the next skin weight should be applied
-                const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index;
-                const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 1;
-                const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_Index + 2;
+                // get the vertex index count
+                const std::size_t vertexIndexCount =
+                        m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex.size();
 
-                Vector3F inputVertex;
+                // iterate through weights influences vertex indices
+                for (std::size_t l = 0; l < vertexIndexCount; ++l)
+                {
+                    // get the next vertex to which the next skin weight should be applied
+                    const std::size_t iX = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l];
+                    const std::size_t iY = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 1;
+                    const std::size_t iZ = m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_WeightInfluences[k]->m_VertexIndex[l] + 2;
 
-                // get input vertex
-                inputVertex.m_X = (*m_VBCache[i])[iX];
-                inputVertex.m_Y = (*m_VBCache[i])[iY];
-                inputVertex.m_Z = (*m_VBCache[i])[iZ];
+                    Vector3F inputVertex;
 
-                // apply bone transformation to vertex
-                const Vector3F outputVertex = finalMatrix.Transform(inputVertex);
+                    // get input vertex
+                    inputVertex.m_X = (*m_VBCache[i])[iX];
+                    inputVertex.m_Y = (*m_VBCache[i])[iY];
+                    inputVertex.m_Z = (*m_VBCache[i])[iZ];
 
-                // apply the skin weights and calculate the final output vertex
-                pMesh->m_VB[0]->m_Data[iX] += (outputVertex.m_X * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
-                pMesh->m_VB[0]->m_Data[iY] += (outputVertex.m_Y * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
-                pMesh->m_VB[0]->m_Data[iZ] += (outputVertex.m_Z * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                    // apply bone transformation to vertex
+                    const Vector3F outputVertex = finalMatrix.Transform(inputVertex);
+
+                    // apply the skin weights and calculate the final output vertex
+                    pMesh->m_VB[0]->m_Data[iX] += (outputVertex.m_X * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                    pMesh->m_VB[0]->m_Data[iY] += (outputVertex.m_Y * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                    pMesh->m_VB[0]->m_Data[iZ] += (outputVertex.m_Z * (float)m_pModel->m_Deformers[i]->m_SkinWeights[j]->m_Weights[k]);
+                }
             }
         }
     }
@@ -2037,46 +2015,7 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel)
             pSkeleton->m_Name   = skeletonItem.m_Bones[i]->m_Name;
             pSkeleton->m_Matrix = skeletonItem.m_Bones[i]->m_Matrix;
 
-            // todo FIXME -cFeature -oJean: Matrix should be built from head, tail and roll instead,
-            //                              but I don't know how to well use these values. The first
-            //                              idea was to find the direction by subtracting tail by head,
-            //                              then to deduce the rotation quaternion by normalizing the
-            //                              direction and using the FromAxis() quaternion function,
-            //                              but the result was incorrect, although close to the expected
-            //                              one
-            /*
-            const Vector3F head = skeletonItem.m_Bones[i]->m_Head;
-            const Vector3F tail = skeletonItem.m_Bones[i]->m_Tail;
-            const float    roll = skeletonItem.m_Bones[i]->m_Roll;
-
-            const Vector3F delta = tail - head;
-            const Vector3F dir   = delta.Normalize();
-
-            QuaternionF rotation;
-            rotation.FromAxis(roll, dir);
-
-            pSkeleton->m_Matrix               = rotation.ToMatrix();
-            pSkeleton->m_Matrix.m_Table[3][0] = head.m_X;
-            pSkeleton->m_Matrix.m_Table[3][1] = head.m_Y;
-            pSkeleton->m_Matrix.m_Table[3][2] = head.m_Z;
-            */
-
-            std::unique_ptr<IRootBoneDetails> pRootBoneDetails(new IRootBoneDetails());
-
-            // populate the skeleton details
-            pRootBoneDetails->m_Name   = skeletonItem.m_Name;
-            pRootBoneDetails->m_Scale  = skeletonItem.m_Scale;
-            pRootBoneDetails->m_Offset = skeletonItem.m_Offset;
-
-            // also populate the bone details
-            pRootBoneDetails->m_Head = skeletonItem.m_Bones[i]->m_Head;
-            pRootBoneDetails->m_Tail = skeletonItem.m_Bones[i]->m_Tail;
-            pRootBoneDetails->m_Roll = skeletonItem.m_Bones[i]->m_Roll;
-
-            // link the bone details to the bone
-            m_BoneDetails.push_back(pRootBoneDetails.get());
-            pSkeleton->m_pCustom = pRootBoneDetails.release();
-
+            // define this bone as the skeleton root bone
             pModel->m_pSkeleton = pSkeleton.release();
         }
         else
@@ -2086,41 +2025,6 @@ bool MHX2Model::BuildSkeleton(const ISkeletonItem& skeletonItem, Model* pModel)
             pBone->m_pParent = pParent;
             pBone->m_Name    = skeletonItem.m_Bones[i]->m_Name;
             pBone->m_Matrix  = skeletonItem.m_Bones[i]->m_Matrix;
-
-            // todo FIXME -cFeature -oJean: Matrix should be built from head, tail and roll instead,
-            //                              but I don't know how to well use these values. The first
-            //                              idea was to find the direction by subtracting tail by head,
-            //                              then to deduce the rotation quaternion by normalizing the
-            //                              direction and using the FromAxis() quaternion function,
-            //                              but the result was incorrect, although close to the expected
-            //                              one
-            /*
-            const Vector3F head = skeletonItem.m_Bones[i]->m_Head;
-            const Vector3F tail = skeletonItem.m_Bones[i]->m_Tail;
-            const float    roll = skeletonItem.m_Bones[i]->m_Roll;
-
-            const Vector3F delta = tail - head;
-            const Vector3F dir   = delta.Normalize();
-
-            QuaternionF rotation;
-            rotation.FromAxis(roll, dir);
-
-            pBone->m_Matrix               = rotation.ToMatrix();
-            pBone->m_Matrix.m_Table[3][0] = delta.m_X;
-            pBone->m_Matrix.m_Table[3][1] = delta.m_Y;
-            pBone->m_Matrix.m_Table[3][2] = delta.m_Z;
-            */
-
-            std::unique_ptr<IBoneDetails> pBoneDetails(new IBoneDetails());
-
-            // populate the bone details
-            pBoneDetails->m_Head = skeletonItem.m_Bones[i]->m_Head;
-            pBoneDetails->m_Tail = skeletonItem.m_Bones[i]->m_Tail;
-            pBoneDetails->m_Roll = skeletonItem.m_Bones[i]->m_Roll;
-
-            // link the bone details to the bone
-            m_BoneDetails.push_back(pBoneDetails.get());
-            pBone->m_pCustom = pBoneDetails.release();
 
             // add this bone to the parent children bones
             pBone->m_pParent->m_Children.push_back(pBone.get());
@@ -2187,30 +2091,56 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
         }
     }
 
-    std::unique_ptr<Model::IDeformers> pDeformers;
-    ISkinWeightsDict                   skinWeightsDict;
+    std::unique_ptr<Model::IDeformers> pDeformers(new Model::IDeformers());
+    IIndexToInflDict                   indexToInfl;
     float                              determinant;
 
     const std::size_t weightsGroupCount = pGeometryItem->m_Mesh.m_WeightGroups.size();
 
     // create the mesh weights containers
-    if (!m_PoseOnly)
+    for (std::size_t i = 0; i < weightsGroupCount; ++i)
     {
-        pDeformers.reset(new Model::IDeformers());
+        // populate the skin weights. The weight matrix is the inverse of the global bone matrix, as explained in this document:
+        // https://veeenu.github.io/blog/implementing-skeletal-animation/
+        std::unique_ptr<Model::ISkinWeights> pSkinWeights(new Model::ISkinWeights());
+        pSkinWeights->m_BoneName = pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key;
+        pSkinWeights->m_pBone    = pModel->FindBone(pModel->m_pSkeleton, pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key);
+        pSkinWeights->m_Matrix   = pSkinWeights->m_pBone->m_Matrix.Inverse(determinant);
 
-        for (std::size_t i = 0; i < weightsGroupCount; ++i)
+        // read the vertex indices and the weights from the source file
+        for (IWeightTable::iterator it = pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Table.begin();
+                it != pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Table.end(); ++it)
         {
-            std::unique_ptr<Model::ISkinWeights> pSkinWeights(new Model::ISkinWeights());
-            pSkinWeights->m_BoneName                  = pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key;
-            pSkinWeights->m_pBone                     = pModel->FindBone(pModel->m_pSkeleton, pGeometryItem->m_Mesh.m_WeightGroups[i]->m_Key);
-            // todo FIXME -cFeature -oJean: following this document: https://veeenu.github.io/blog/implementing-skeletal-animation/
-            //                              But don't know if should really be calculated this way. To check after the bone matrix
-            //                              will work as expected
-            pSkinWeights->m_Matrix                    = pSkinWeights->m_pBone->m_Matrix.Inverse(determinant);
-            skinWeightsDict[pSkinWeights->m_BoneName] = pSkinWeights.get();
-            pDeformers->m_SkinWeights.push_back(pSkinWeights.get());
-            pSkinWeights.release();
+            // create a new weight influence, and set the vertex index it references
+            std::unique_ptr<Model::IWeightInfluence> pWeightInfluence(new Model::IWeightInfluence());
+            pWeightInfluence->m_Index = it->first;
+            pSkinWeights->m_WeightInfluences.push_back(pWeightInfluence.get());
+
+            // search for existing index in the dictionary
+            IIndexToInflDict::iterator itInfl = indexToInfl.find(pWeightInfluence->m_Index);
+
+            // found it?
+            if (itInfl == indexToInfl.end())
+            {
+                // create a new weight influence reference
+                Model::IWeightInfluences weightInfluences;
+                weightInfluences.push_back(pWeightInfluence.get());
+
+                // add the index to the dictionary
+                indexToInfl[pWeightInfluence->m_Index] = weightInfluences;
+            }
+            else
+                // add the weight influence to the index
+                itInfl->second.push_back(pWeightInfluence.get());
+
+            pWeightInfluence.release();
+
+            // add the weight matching with the vertex
+            pSkinWeights->m_Weights.push_back(it->second);
         }
+
+        pDeformers->m_SkinWeights.push_back(pSkinWeights.get());
+        pSkinWeights.release();
     }
 
     // iterate through the faces to build
@@ -2226,43 +2156,18 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
             {
                 const std::size_t index       = !k ? 0 : j + k;
                 const std::size_t vertexIndex = pVB->m_Data.size();
+                const std::size_t faceIndex   = pFace->m_Values[index];
+                const std::size_t uvIndex     = pUVFace->m_Values[index];
                 const Vector3F    normal;
 
+                AddWeightInfluence(&indexToInfl, faceIndex, pVB.get());
+
                 // add the vertex to the buffer
-                pVB->Add(pGeometryItem->m_Mesh.m_Vertices[pFace->m_Values[index]],
+                pVB->Add(pGeometryItem->m_Mesh.m_Vertices[faceIndex],
                         &normal,
-                        &pGeometryItem->m_Mesh.m_UVCoords[pUVFace->m_Values[index]]->m_Value,
+                        &pGeometryItem->m_Mesh.m_UVCoords[uvIndex]->m_Value,
                          0,
                          m_fOnGetVertexColor);
-
-                // do build the weights
-                if (m_PoseOnly)
-                    continue;
-
-                // iterate through the weight groups
-                for (std::size_t l = 0; l < weightsGroupCount; ++l)
-                {
-                    // find if a weight is attributed to the vertex
-                    IWeightTable::iterator it = pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Table.find(pFace->m_Values[index]);
-
-                    // found a matching vertex weight?
-                    if (it != pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Table.end())
-                    {
-                        Model::ISkinWeights* pSkinWeights = skinWeightsDict[pGeometryItem->m_Mesh.m_WeightGroups[l]->m_Key];
-
-                        if (!pSkinWeights)
-                            continue;
-
-                        std::unique_ptr<Model::IWeightInfluence> pWeightInfluence(new Model::IWeightInfluence());
-
-                        // create and populate the weight and add it to the matching bone group
-                        pWeightInfluence->m_Index = vertexIndex;
-                        pSkinWeights->m_Weights.push_back(it->second);
-                        pSkinWeights->m_WeightInfluences.push_back(pWeightInfluence.get());
-                        pWeightInfluence.release();
-                        break;
-                    }
-                }
             }
     }
 
@@ -2281,12 +2186,25 @@ bool MHX2Model::BuildGeometry(const IModelItem* pModelItem, const IGeometryItem*
     pMesh.release();
 
     // add the deformers to the model
-    if (!m_PoseOnly)
-    {
-        pModel->m_Deformers.push_back(pDeformers.get());
-        pDeformers.release();
-    }
+    pModel->m_Deformers.push_back(pDeformers.get());
+    pDeformers.release();
 
     return true;
+}
+//---------------------------------------------------------------------------
+void MHX2Model::AddWeightInfluence(const IIndexToInflDict* pIndexToInfl, std::size_t indice, VertexBuffer* pModelVB) const
+{
+    if (!pIndexToInfl)
+        return;
+
+    IIndexToInflDict::const_iterator it = pIndexToInfl->find(indice);
+
+    if (it != pIndexToInfl->end())
+    {
+        const std::size_t weightInflCount = it->second.size();
+
+        for (std::size_t j = 0; j < weightInflCount; ++j)
+            it->second[j]->m_VertexIndex.push_back(pModelVB->m_Data.size());
+    }
 }
 //---------------------------------------------------------------------------
